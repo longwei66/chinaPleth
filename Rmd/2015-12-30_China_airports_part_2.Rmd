@@ -1,0 +1,188 @@
+---
+title: "Getting and cleaning data, example of Chinese airports - Part 2/5"
+author: "chinaPleth"
+date: "December 30, 2015"
+output: 
+  html_document: 
+    toc: yes
+---
+
+
+## Introduction
+### Objective  
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+
+The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
+
+In this second part, we will do some exploratory data analysis and data cleaning of the Openflight data set we obtained in [part 1](http://chinapleth.io/2015/12/29/getting-and-cleaning-data-example-of-chinese-airports-part-15/)
+
+
+### Dependencies
+We will need few standard packages as loaded bellow.
+
+```{r libLoading, message=FALSE}
+library(maptools); library(reshape2)
+library(grid); library(dplyr)
+library(ggplot2); library(gmaps)
+library(ggmap); library(jsonlite)
+```
+
+### Loading part 1 objects
+
+
+```{r loadPart1, echo=TRUE,eval=TRUE}
+load(file = "./chinese-airports-part-1.Rda")
+```
+
+
+## Openflight : exploratory data analysis
+
+### Overview
+
+```{r checkOpenflight1}
+str(airportChinaOpenflights)
+```
+
+Seems that we should have all field we need but some data may be missing, let's investigate. One of the way could be to use Rstudio `View()` function but this is not recommended, especially for large datasets. 
+
+
+### Variable `name`  
+By the command `unique(airportChinaOpenflights$name)` we find out that some of the names are containing Railway Stations, Ferry, ports. They are listed bellow with their IATA.FAA and ICAO code. All are missing, except GZS, after checking online, it's confirmed as a train station and not an airport.
+
+```{r OpenflightsCheck7}
+test <- airportChinaOpenflights[grepl(pattern = "RAILWAY|STATION| PORT|FERRY", x = toupper(airportChinaOpenflights$name)),]
+head(dplyr::select(test, city, name, IATA.FAA, ICAO))
+## Inititalise category field, consider all as Airport
+airportChinaOpenflights$category <- "civil airport"
+airportChinaOpenflights[grepl(pattern = "RAILWAY|STATION| PORT|FERRY", x = toupper(airportChinaOpenflights$name)),]$category <- "Not airport"
+```
+
+Checking wikipedia we find out that IATA also provides codes for railway stations and for airport handling entities.
+
+```{r OpenflightsCheck9}
+airportChinaOpenflights <- airportChinaOpenflights[airportChinaOpenflights$category == "civil airport",]
+```
+We keep only the `r nrow(airportChinaOpenflights)` airports.
+
+### Variable `city`  
+```{r checkOFcity}
+sum(is.na(airportChinaOpenflights$city))
+sum(airportChinaOpenflights$city == "")
+airportChinaOpenflights[grepl(pattern = "XI.*AN", toupper(airportChinaOpenflights$city)),]$city <- "Xi'an"
+```
+No missing values, no NAs for city but we just need to fix Xi'an city name, which appear in one of the record with for escape char.
+
+### Variable `IATA.FAA`
+From [wikipedia](https://en.wikipedia.org/wiki/International_Air_Transport_Association_airport_code)  
+
+> An IATA airport code, also known an IATA location identifier, IATA station code or simply a location identifier,[1] is a three-letter code designating many airports around the world, defined by the International Air Transport Association (IATA).
+
+Let's check the airport which are not matching a 3 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitube by NAs.
+
+```{r OpenflightsIATA}
+unique(airportChinaOpenflights[!grepl( pattern = "[A-Z][A-Z][A-Z]",x = airportChinaOpenflights$IATA.FAA),]$IATA.FAA)
+airportChinaOpenflights[!grepl( pattern = "[A-Z][A-Z][A-Z]",x = airportChinaOpenflights$IATA.FAA),]$IATA.FAA <- NA
+```
+
+**Is IATA unique ?**, seems yes ! No double identification by IATA.FAA  
+```{r OFIATAunique}
+checkIATA <- as.data.frame(table(airportChinaOpenflights[!is.na(airportChinaOpenflights$IATA.FAA),]$IATA.FAA))
+names(checkIATA) <- c("IATA.FAA", "freq")
+checkIATA[checkIATA$freq > 1,]$IATA.FAA
+```
+
+
+
+### Variable `ICAO` code
+
+From [wikipedia](https://en.wikipedia.org/wiki/International_Civil_Aviation_Organization_airport_code)  
+
+> The ICAO airport code or location indicator is a four-character alphanumeric code designating aerodromes around the world. These codes are defined by the International Civil Aviation Organization,[...]. They differ from IATA codes, which are generally used for airline timetables, reservations, and baggage tags. For example, the IATA code for London's Heathrow Airport is LHR and its ICAO code is EGLL. ICAO codes are commonly seen by passengers and the general public on flight-tracking services such as FlightAware. In general IATA codes are usually derived from the name of the airport or the city it serves, while ICAO codes are distributed by region and country.
+
+Let's check the airport which are not matching a 4 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitube by NAs.
+
+```{r OpenflightsICAO}
+unique(airportChinaOpenflights[!grepl( pattern = "[A-Z][A-Z][A-Z][A-Z]",x = airportChinaOpenflights$ICAO),]$ICAO)
+airportChinaOpenflights[!grepl( pattern = "[A-Z][A-Z][A-Z][A-Z]",x = airportChinaOpenflights$ICAO),]$ICAO <- NA
+```
+
+
+**Is ICAO unique ?**, seems yes !, no double identification by ICAO
+```{r OFICAOunique}
+checkICAO <- as.data.frame(table(airportChinaOpenflights[!is.na(airportChinaOpenflights$ICAO),]$ICAO))
+names(checkICAO) <- c("ICAO", "freq")
+checkICAO[checkICAO$freq > 1,]$ICAO
+```
+
+### Variable : `latitude.deg`, `longitude.deg`, `elevation.m`
+```{r checkOpenflight2}
+sum(is.na(airportChinaOpenflights$latitude.deg)) + 
+sum(is.na(airportChinaOpenflights$longitude.deg)) +
+sum(is.na(airportChinaOpenflights$elevation.m))
+```
+We don't have missing values in longitude, latitude and elevation. But do we have 0, does the data looks logical ? Let's build a plot of the distributions of these variables.
+
+```{r checkOpenflight3, message=FALSE}
+##      Create the 2x2 tiled chart to be filled by row
+par(mfrow = c(2,2))
+hist(airportChinaOpenflights$latitude.deg, breaks = 20)
+hist(airportChinaOpenflights$longitude.deg, breaks = 20)
+hist(airportChinaOpenflights$elevation.m, breaks = 20)
+hist(airportChinaOpenflights[airportChinaOpenflights$elevation.m < 30,]$elevation.m, breaks = 100, xlab = "Airports with elevation < 30m")
+```
+
+With this tiled chart we can visualise quickly that distribution of latitude and longitude looks reasonnable with no extreme values included. However, regarding elevation, we have a lot of airport in low elevation and in the bottom right chart we see that most of them (>60) are at 0 meters or very close to zero. Actually we have  `r nrow(airportChinaOpenflights[airportChinaOpenflights$elevation.m == 0,])` airpots with an elevation of 0 meters.
+
+```{r mapOpenflight}
+g <- ggplot() + theme_bw()
+## airports with elevation
+g <- g + geom_point(data = airportChinaOpenflights,
+                    aes(x = longitude.deg, y = latitude.deg, colour = elevation.m),
+                    pch = 19)
+## airport with 0 m  as elevation in red
+g + geom_point(data = airportChinaOpenflights[airportChinaOpenflights$elevation.m == 0,], 
+                    aes(x = longitude.deg, y = latitude.deg, colour = elevation.m),
+                    size = 5, alpha = 0.2, col = "firebrick", pch = 1) +
+        ggtitle("exploratory plot of OF dataset with elevation")
+```
+
+This map is the plot of airports based on the geolocalisation and elevation. Airports with 0m of elevation are highlighted by a red circle. We can conclude that in fact their elevation is missing and replace with NAs.
+
+```{r elevationNAOpen}
+airportChinaOpenflights[airportChinaOpenflights$elevation.m == 0,]$elevation.m <- NA
+```
+
+### Conclusion
+Let's use the Amelia package to get an overview of the missing data in the data set.
+
+```{r openflightAmelia, message=FALSE}
+library(Amelia)
+missmap(airportChinaOpenflights, 
+        main = "Missingness Map of Openflight Chinese airport Dataset")
+```
+
+We have a dataset of `r nrow(airportChinaOpenflights)` airports which still requires some work to complete the missing data for few IATA codes and several ICAO Codes. Most of the elevation data is missing.
+
+
+```{r noCodeOF, echo=FALSE, eval=FALSE}
+## Airports with no IATA & ICAO
+test <- airportChinaOpenflights[is.na(airportChinaOpenflights$ICAO) & is.na(airportChinaOpenflights$IATA.FAA),]
+dplyr::select(test, name, city, IATA.FAA, ICAO)
+## Airports with no IATA but no ICAO
+test <- airportChinaOpenflights[is.na(airportChinaOpenflights$ICAO) & !is.na(airportChinaOpenflights$IATA.FAA),]
+dplyr::select(test, name, city, IATA.FAA, ICAO)
+```
+
+## Saving objects for next part
+Let's now save the different objects to be reused in the next part of this post.
+
+```{r saveObjects, cache=FALSE}
+save( list = c("airportChinaOpenflights", 
+               "airportChinaOurairports"
+               ),
+      file = "chinese-airports-part-2.Rda")
+```
+
+In the next post, we will do some exploratory data analysis and data cleaning of the OurAirports data set.
+
+

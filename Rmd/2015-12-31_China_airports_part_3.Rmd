@@ -1,0 +1,222 @@
+---
+title: "Getting and cleaning data, example of Chinese airports - Part 3/5"
+author: "chinaPleth"
+date: "December 31, 2015"
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Introduction
+### Objective  
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+
+The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
+
+In this second part, we will do some exploratory data analysis and data cleaning of the OurAirports data set we obtained in [part 2](http://chinapleth.io/2015/12/30/getting-and-cleaning-data-example-of-chinese-airports-part-25/)
+
+
+### Dependencies
+We will need few standard packages as loaded bellow.
+
+```{r libLoading, message=FALSE}
+library(maptools); library(reshape2)
+library(grid); library(dplyr)
+library(ggplot2); library(gmaps)
+library(ggmap); library(jsonlite)
+```
+
+### Loading part 2 objects
+
+
+```{r loadPart1, echo=TRUE,eval=TRUE}
+load(file = "./chinese-airports-part-2.Rda")
+```
+
+
+
+## OurAirports data : exploratory data analysis
+
+### Overview
+
+This dataset looks more complete than the Openflight data, there are more field and more lignes (`r nrow(airportChinaOurairports)` airports). Let's follow similar process for exploration / cleaning.There are some field of little interest for us which are removed.
+
+```{r clearFieldOA}
+str(airportChinaOurairports)
+```
+
+
+### Variable `type.airport`
+```{r checkOA51}
+unique(airportChinaOurairports$type.airport)
+```
+
+Let's keep for the moment heliport, seaplane_base and closed airports on top of all other categories. We have still `r nrow(airportChinaOurairports)` references.
+
+
+### Variable `name`  
+```{r checkOA6}
+# initialise per default all airports as civil airports
+airportChinaOurairports$category <- "civil airport"
+# Find airport which name contains air base
+test <- airportChinaOurairports[grepl(pattern = "AIR BASE", x = toupper(airportChinaOurairports$name)),]
+head(dplyr::select(test, name, IATA.FAA, ICAO))
+# categorise these airports as military
+airportChinaOurairports[grepl(pattern = "AIR BASE", x = toupper(airportChinaOurairports$name)),]$category <- "military airport"
+```
+
+Checking the names by `unique(airportChinaOurairports$name)` we find out that some of the names are probably military airports, called Air Base, there are `r nrow(test)`. We categorized them as military. In China some of the military airport have a civil use, let's keep them all for the moment.
+
+### Variable `latitude.deg`, `longitude.deg`, `elevation.m`
+```{r checkAO2}
+sum(is.na(airportChinaOurairports$latitude.deg)) +
+sum(is.na(airportChinaOurairports$longitude.deg))
+sum(is.na(airportChinaOurairports$elevation.m))
+```
+We only have missing values elevation. But do we have 0? Does the data looks logical ? Let's build a plot of the distributions of these variables.
+
+```{r checkAO3}
+##      Create the 2x2 tiled chart to be filled by row
+par(mfrow = c(2,2))
+hist(airportChinaOurairports$latitude.deg, breaks = 20)
+hist(airportChinaOurairports$longitude.deg, breaks = 20)
+hist(airportChinaOurairports$elevation.m, breaks = 20)
+hist(airportChinaOurairports[airportChinaOurairports$elevation.m < 50,]$elevation.m, breaks = 100, xlab = "Airports with elevation < 50m")
+```
+
+With this tiled chart we can visualise quickly that distribution of latitude and longitude which looks reasonnable with no extreme values. Regarding elevation, we have a lot of airport in low elevation and in the bottom right chart we see that almost none of them are at 0 meters.
+
+
+```{r mapAO, warning=FALSE}
+g <- ggplot() + theme_bw()
+## airports with elevation
+g <- g + geom_point(data = airportChinaOurairports, aes(x = longitude.deg, y = latitude.deg, colour = elevation.m, shape = type.airport), pch = 19)
+## airport with 0 m  as elevation in red
+g + geom_point(data = airportChinaOurairports[is.na(airportChinaOurairports$elevation.m),], aes(x = longitude.deg, y = latitude.deg, colour = elevation.m), size = 5, alpha = 0.2, col = "firebrick", pch = 1) +
+        ggtitle("exploratory plot of OA dataset with elevation")
+```
+
+This map is the plot of airports based on the geolocalisation and elevation. Airports with NA data for elevation are highlighted by a red circle. 
+
+### Variable : `city`
+```{r checkOAcity}
+sum(is.na(airportChinaOurairports$city))
+sum(airportChinaOurairports$city == "")
+airportChinaOurairports[airportChinaOurairports$city == "",]$city <- NA
+```
+Some empty values, no NAs for city, but several empty string char, we replace thees by NA.
+
+### Variable `scheduled.service`
+```{r checkOAscheduled.service}
+unique(airportChinaOurairports$scheduled.service)
+```
+No empty char or NA for scheduled.service field.
+
+
+### Variable `IATA.FAA`
+Let's check the airport which are not matching a 3 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitube by NAs. Rename this field with same title as in Openflight dataset.
+
+```{r checkOA3}
+unique(airportChinaOurairports[!grepl( pattern = "[A-Z][A-Z][A-Z]",x = airportChinaOurairports$IATA.FAA),]$IATA.FAA)
+airportChinaOurairports[!grepl( pattern = "[A-Z][A-Z][A-Z]",x = airportChinaOurairports$IATA.FAA),]$IATA.FAA <- NA
+
+```
+
+**Is IATA unique ?***
+```{r OAIATAunique}
+checkIATA <- as.data.frame(table(airportChinaOurairports[!is.na(airportChinaOurairports$IATA.FAA),]$IATA.FAA))
+names(checkIATA) <- c("IATA.FAA", "freq")
+doublon <- checkIATA[checkIATA$freq > 1,]$IATA.FAA
+airportChinaOurairports[!is.na(airportChinaOurairports$IATA.FAA) & airportChinaOurairports$IATA.FAA == doublon[1],c(2,6,7)]
+airportChinaOurairports <- airportChinaOurairports[!grepl(pattern = "Duplicate", airportChinaOurairports$name),]
+```
+
+We can delete the duplicate records
+
+### Variable `ICAO`
+Let's check it as we did for Openflight data. Replace blank values by NA.
+
+```{r checkOA5}
+unique(airportChinaOurairports[!grepl( pattern = "[A-Z][A-Z][A-Z][A-Z]",x = airportChinaOurairports$ICAO),]$ICAO)
+airportChinaOurairports[!grepl( pattern = "[A-Z][A-Z][A-Z][A-Z]",x = airportChinaOurairports$ICAO),]$ICAO <- NA
+```
+
+**Is ICAO unique ?**, seems yes ! No more duplicates are found  
+```{r ICAOTAunique}
+checkICAO <- as.data.frame(table(airportChinaOurairports[!is.na(airportChinaOurairports$ICAO),]$ICAO))
+names(checkICAO) <- c("ICAO", "freq")
+checkICAO[checkICAO$freq > 1,]$ICAO
+```
+
+### Variable `airport.home.link`
+```{r checkOAairport.home.link}
+sum(is.na(airportChinaOurairports$airport.home.link))
+sum(airportChinaOurairports$airport.home.link == "")
+
+airportChinaOurairports <- dplyr::select(airportChinaOurairports, -airport.home.link)
+```
+Most of the data is empty, let's scrap this field.s
+
+### Variable `airport.wikipedia.link`  
+```{r checkOAairport.wikipedia.link}
+sum(is.na(airportChinaOurairports$airport.wikipedia.link))
+sum(airportChinaOurairports$airport.wikipedia.link == "")
+airportChinaOurairports[airportChinaOurairports$airport.wikipedia.link == "",]$airport.wikipedia.link <- NA
+```
+The data is partly empty, let's replace empty strings by NA.
+
+### Variable `region.name`  
+```{r checkOAregion.name}
+sum(is.na(airportChinaOurairports$region.name)) + 
+sum(airportChinaOurairports$region.name == "")
+sum(airportChinaOurairports$region.name == "(unassigned)")
+airportChinaOurairports[airportChinaOurairports$region.name == "(unassigned)",]$region.name <- NA
+unique(airportChinaOurairports$region.name)
+```
+We replace the unasigned region name by NA.
+
+
+### Removing military airports
+
+The military airports to be removed are the one with no ICAO and IATA.FAA codes. We assume they don't provide passenger service.
+
+```{r noCodeOA}
+## Airports with no IATA & ICAO and of type military
+airportChinaOurairports <- airportChinaOurairports[!(is.na(airportChinaOurairports$ICAO) & is.na(airportChinaOurairports$IATA.FAA) &   airportChinaOurairports$category == "military airport"),]
+```
+
+### Conclusion
+We have a dataset of `r nrow(airportChinaOurairports)` airports which still requires some work to complete the missing data for few IATA codes and several ICAO Codes. Most of the elevation data is missing.
+
+Let's use the Amelia package to get an overview of the missing data in the data set.
+
+```{r ourAirportAmelia, message=FALSE}
+library(Amelia)
+missmap(airportChinaOurairports, main = "Missingness Map of OurAirports Chinese airport Dataset")
+```
+
+
+```{r noCodeOA2, eval=FALSE, echo=FALSE}
+# Airports with IATA but no ICAO
+test <- airportChinaOurairports[is.na(airportChinaOurairports$ICAO) & !is.na(airportChinaOurairports$IATA.FAA),]
+dplyr::select(test, name, city, IATA.FAA)
+```
+
+```{r noCodeOA3, eval=FALSE, echo=FALSE}
+# Airports with IATA and no ICAO
+test <- airportChinaOurairports[is.na(airportChinaOurairports$ICAO) & is.na(airportChinaOurairports$IATA.FAA),]
+dplyr::select(test, name, city)
+```
+
+## Saving objects for next part
+Let's now save the different objects to be reused in the next part of this post.
+
+```{r saveObjects, cache=FALSE}
+save( list = c("airportChinaOpenflights", 
+               "airportChinaOurairports"
+               ),
+      file = "chinese-airports-part-3.Rda")
+```
+
+In the next post, we will Creating one data set and fetching missing data.
+
