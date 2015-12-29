@@ -1,0 +1,252 @@
+---
+title: "Getting and cleaning data, example of Chinese airports - Part 1/5"
+author: "chinaPleth"
+date: "December 29, 2015"
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Introduction
+### Objective  
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+
+The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
+
+In this first part, we will get airport data from two different sources, download it with R, and load the two data sets in two data frames.
+
+**What do we need**  
+We need an accurate list of airports in China with their geolocalisation (longitude and latitude, elevation) as well as information about their code (IATA or ICAO) and plain english/chinese city name as well as airport name. We would like to focus on civil aiports.
+
+We will see that this process can be time consuming and complicated however, using Rmarkdown, we can make the data cleaning process documented and fully reproductible. We will discuss options to get data, how to use R basic functions and ggplot2 to evaluate the quality of a data set, compare different sources, and finally get the best of two different sources. Finally we will fix missing data by external ressources such as googlemaps API and wikipedia. 
+
+### Devil is in the details and the too much polished visualisation  
+What is at stake here is to get the best data set with the minimum amount of effort. Exploratory analysis to visualise data, missing data is very usefull to support this process. However, we should avoided at this stage of the process to spend too much time in the details and nice / pretty visualisation. We just need to get things done.
+
+### Dependencies, internet set-up, R code generation
+We will need few standard packages as loaded bellow.
+
+```{r libLoading, message=FALSE}
+library(maptools); library(reshape2)
+library(grid); library(dplyr)
+library(ggplot2); library(gmaps)
+library(ggmap); library(jsonlite)
+```
+
+If you need to use proxy with Rstudio (to get through a VPN for instance), you need to add in ~/.Renviron file the following lines with IP and port of your proxy
+```
+http_proxy=http://IP:port
+https_proxy=https://IP:port
+```
+If you need to test the connection : 
+```{r checkProxy, eval=FALSE, echo=TRUE}
+library(RCurl); getURL("www.google.com")
+```
+
+### Extracting full code from this report
+
+To generate R code from this Rmd (fully available on our [github account](https://github.com/longwei/chinaPleth)), you can use `purl()` from `knitr` package with the option `documentation = 2` which keeps Rmd text as comments.
+
+```{r generateRfromRmd, echo=TRUE,eval=FALSE}
+library(knitr); purl("2015-11-04_Chinese-Airports.Rmd", documentation = 2)
+```
+
+
+## Getting Chinese airports data
+### Finding Chinese airports data
+There are mainy apps and websites providing flights information, they rely on data which rarely open and distributed. After some basic [duckducking](http://duckduckgo.com), we identify two relevant open sources for airports :
+
+- Openflight (OF) : http://www.openflights.org/data.html 
+- Ourairports (OA) : http://ourairports.com/data/
+
+### Openflight Data (OF)
+Data source:  [airports.dat](https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat)
+
+```{r downloadOFdata, message=FALSE, cache=FALSE}
+## Download Of airport data
+airportsOFurl <- "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
+airportsOFFile <- "../../data/chinaPlethData/ext/openflights/airports.dat"
+if(!file.exists(airportsOFFile)){
+                download.file(airportsOFurl, 
+                              airportsOFFile, 
+                              method = "wget",
+                              quiet = FALSE,
+                              mode = "w",
+                              cacheOK = TRUE)}
+```
+
+We will use the function bellow to load openflights airport data for a specific country and return a data frame with clean variable names.
+
+```{r openflighFunction, message=FALSE}
+OpenflightsAirportData <- function(dataFile, country = "ALL") {
+        dF <- read.csv(dataFile ,header = FALSE, stringsAsFactors = FALSE, skip = 3)
+        ## give proper variable names
+        names(dF) <- c(
+                "airport.ID", # OpenFlights identifier for this airport.
+                "name", # Airport name. May not contain the city name.
+                "city", # City served by airport.
+                "country.name", # Country or territory where airport is located
+                "IATA.FAA", # 3-letter IATA or FAA code of airports.
+                "ICAO", #  4-letter ICAO code.
+                "latitude.deg", # Latitude decimal degrees, six significant digits.
+                "longitude.deg", # Longitude decimal degrees, six significant digits.
+                "elevation.ft", # Elevation in feet
+                "Timezone", # Hours offset from UTC
+                "DST", # Daylight savings time (see codebook for codes)
+                "Tz" # Timezone in "tz" (Olson) format" )
+        )
+        ## Select the country
+        if (country != "ALL") { dF <- subset(dF, country.name == country)}
+        ## Add elevation in meters
+        dF$elevation.m <- dF$elevation.ft * 0.3054
+        dF }
+```
+
+Let's load the data for China.
+
+```{r loadOpenflight}
+airportChinaOpenflights <- OpenflightsAirportData(dataFile = "../../data/chinaPlethData/ext/openflights/airports.dat", country = "China")
+
+# Keep only needed fields
+airportChinaOpenflights <- dplyr::select(airportChinaOpenflights, 
+                                         -airport.ID, -Timezone,
+                                         -DST, -Tz, -elevation.ft,
+                                         -country.name)
+```
+There are `r nrow(airportChinaOpenflights)` airport in China in openflight (OF) dataset.
+
+### Our airports (OA)
+
+We need to download 3 files (http://ourairports.com/data/):
+
+- `airports.csv` which contains airports data
+- `countries.csv` which contains countries details (needed to parse airports files)
+- `regions.csv` which contains region data (needed to parse aiports files)
+
+
+```{r downloadOAdata, message=FALSE, cache=FALSE}
+## Download OA data
+airportsOAurl <- "http://ourairports.com/data/airports.csv"
+airportsOAFile <- "../../data/chinaPlethData/ext/ourairports/airports.csv"
+countriesOAurl <- "http://ourairports.com/data/countries.csv"
+countriesOAFile <- "../../data/chinaPlethData/ext/ourairports/countries.csv"
+regionsOAurl <- "http://ourairports.com/data/regions.csv"
+regionsOAFile <- "../../data/chinaPlethData/ext/ourairports/regions.csv"
+
+## airports
+if(!file.exists(airportsOAFile)){
+                download.file(airportsOAurl, 
+                              airportsOAFile, 
+                              method = "wget",
+                              quiet = FALSE,
+                              mode = "w",
+                              cacheOK = TRUE)}
+## countries
+if(!file.exists(countriesOAFile)){
+                download.file(countriesOAurl, 
+                              countriesOAFile, 
+                              method = "wget",
+                              quiet = FALSE,
+                              mode = "w",
+                              cacheOK = TRUE)}
+## regions
+if(!file.exists(regionsOAFile)){
+                download.file(regionsOAurl, 
+                              regionsOAFile, 
+                              method = "wget",
+                              quiet = FALSE,
+                              mode = "w",
+                              cacheOK = TRUE)}
+
+
+
+```
+
+
+
+
+
+
+Let's make a function to load openflights airport data for a specific country.  
+```{r ourAirportsFunction, message=FALSE}
+OurairportsData <- function(dataFile, countryFile, regionFile, country = "ALL") {
+        ## Load Airport Data
+        dF <- read.csv(dataFile ,header = TRUE, stringsAsFactors = FALSE)
+        ## give proper variable names
+        names(dF) <- c(
+                "id.airport","ident",
+                "type.airport",
+                "airport.name",
+                "latitude.deg","longitude.deg",
+                "elevation.ft",
+                "airport.continent",
+                "iso.country","iso.region",
+                "airport.municipality",
+                "scheduled.service",
+                "gps.code","iata.code",
+                "local.code",
+                "airport.home.link","airport.wikipedia.link",
+                "airport.keywords")
+        ## remove overlap data with next steos
+        dF <- dplyr::select(dF, -airport.continent)
+        ## Load Country data
+        dC <- read.csv(countryFile ,header = TRUE, stringsAsFactors = FALSE)
+        ## give proper variable names
+        names(dC) <- c("id.country", "iso.country", "country.name", 
+                "continent", "country.wikipedia.link", "country.keywords")
+        ## Merge airport table with country data
+        dF <- merge(dF, dC, by.x = "iso.country", by.y = "iso.country")
+        ## Load Region data
+        dR <- read.csv(regionFile ,header = TRUE, stringsAsFactors = FALSE)
+        ## give proper variable names
+        names(dR) <- c("id.region", "iso.region", "region.local.code",
+                "region.name", "continent", "iso.country",
+                "region.wikipedia.link", "region.keywords")
+        dR <- dplyr::select(dR, -continent, -iso.country)
+        ## Merge airport table with region data
+        dF <- merge(dF, dR, by.x = "iso.region", by.y = "iso.region")
+        ## Select the country
+        if (country != "ALL") { dF <- subset(dF, country.name == country)}
+        ## Convert Altitude in meters
+        dF$elevation.m <- dF$elevation.ft * 0.3054
+        dF }
+```
+
+
+```{r loadOurAirports}
+airportChinaOurairports <- OurairportsData(dataFile = "../../data/chinaPlethData/ext/ourairports/airports.csv", countryFile = "../../data/chinaPlethData/ext/ourairports/countries.csv", regionFile = "../../data/chinaPlethData/ext/ourairports/regions.csv", country = "China")
+
+## keep only needed fields
+airportChinaOurairports <- dplyr::select(airportChinaOurairports,
+                                         -iso.region,
+                                         -ident, -iso.country, 
+                                         -id.airport, -id.country, -country.name,
+                                         -continent, -country.wikipedia.link,
+                                         -country.keywords, -id.region,
+                                         -region.local.code,
+                                         -region.keywords,-elevation.ft,
+                                         -local.code, -airport.keywords,
+                                         -region.wikipedia.link)
+## rename some field to match openflight dataset
+airportChinaOurairports <- dplyr::rename(airportChinaOurairports, 
+                                         IATA.FAA = iata.code,
+                                         ICAO = gps.code,
+                                         name = airport.name,
+                                         city = airport.municipality)
+```
+There are `r nrow(airportChinaOurairports)` airport in China in ourairports dataset.
+
+## Saving objects for next part
+Let's now save the different objects to be reused in the next part of this post.
+
+```{r saveObjects, cache=FALSE}
+save( list = c("airportChinaOpenflights", 
+               "airportChinaOurairports"
+               ),
+      file = "chinese-airports-part-1.Rda")
+```
+
+In the next post, we will do some exploratory data analysis and data cleaning of the Openflight data set.
+
+
+

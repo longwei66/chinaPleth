@@ -1,0 +1,227 @@
+---
+title: "Map of China provinces, municipalities and autonomous regions (in Chinese)"
+author: "Chinapleth"
+date: "October 11, 2015"
+output: html_document
+---
+
+## Objective
+In this article we are going to plot a simple map of China with different levels of subdivisions using both base and ggplot2 systems.
+
+In a nutshell :
+
+- get shape files with different subdivision levels
+- clean data, get proper provinces chinese names
+- plot China base map with subdivisions both is base and ggplot systems
+- add subdivision names on the map
+
+There are three excellents reference article (with maps of Nepal and Toronto) for such process : 
+
+- http://bl.ocks.org/prabhasp/raw/5030005/
+- http://unconj.ca/blog/choropleth-maps-with-r-and-ggplot2.html
+- http://rpsychologist.com/working-with-shapefiles-projections-and-world-maps-in-ggplot
+
+## Principle & Process
+
+### Process steps
+
+A lot of geographical models are available online, they need a bit of data processing to be usable in R depending on their format.
+
+
+### Required libraries
+
+First of all need first a set of graphical and data manipulation libraries
+
+```{r libLoading, message=FALSE}
+library(maptools)
+library(rgeos)
+library(gpclib)
+library(foreign)
+library(sp)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(knitr)
+library(RWordPress)
+```
+
+### About R SpatialPolygonsDataFrame
+We need then to get geographical data for China. There are many possible references but we will focus on the commonly used "Global Administrative Areas" : http://www.gadm.org/country
+
+> GADM is a spatial database of the location of the world's administrative areas (or adminstrative boundaries) for use in GIS and similar software. Administrative areas in this database are countries and lower level subdivisions such as provinces, departments...
+
+For instance, if we take China, the first level of subdivisions contains 31 elements of type Province, Municipality, Autonomous Region such as Jiangsu province, Shanghai municipality, etc...
+
+In R, we need to create an object of class `SpatialPolygonsDataFrame`, this is a special type of data frame composed of two elements :
+
+- data : basically a data.frame with data associated to available subdivisions (id, name in different languages, type of subdivisions, etc...)
+- polygons : a list with as many elements as we have subdivisions (eg. 31 in the case of Chine level 1) with all geographical coordinnates for the subdivisions
+- more information available here : http://www.inside-r.org/packages/cran/sp/docs/getSpPPolygonsIDSlots
+
+## Getting data
+### Download shapefiles
+GADM provides several formats of data, the easiest way is to get directly the data in R format.
+
+> A "R SpatialPolygonsDataFrame" (.rds) file can be used in R. To use it, first load the sp package using library(sp) and then use readRDS("filename.rds") (obviously replacing "filename.rds" with the actual filename)
+
+But let's try to work first with shape files as these type of data are widely use by other GIS system and it's important to learn how to process these.
+
+> A "shapefile" consist of at least four actual files (.shp, .shx, .dbf, .prj). This is a commonly used format that can be directly used in Arc-anything, DIVA-GIS, and many other programs. 
+
+Let's download China shapefiles from here : http://biogeo.ucdavis.edu/data/gadm2.7/shp/CHN_adm.zip
+We don't integrate the download scripts and unzip as from China internet access can be bumpy. We will assume for later steps that this file is unzipped in `../GAA/` directory.
+
+### Load shape file in R
+We will use `readShapeSpatial` method from the `maptools` library to load the shapefile of first level subdivisions of China.
+
+```{r readShapeFile, message=FALSE}
+ChinaPolygonsLevel1 <- readShapeSpatial("../../data/chinaPlethData/ext/GAA/CHN_adm1.shp")
+class(ChinaPolygonsLevel1 )
+```
+
+## Exploring the data 
+### Subdivision data
+As mentionned previously, this object has two main parts, the data of subdivisions and the polygons.
+
+```{r strPoly, message=FALSE}
+str(ChinaPolygonsLevel1@data)
+```
+
+Basically there are `r nrow(ChinaPolygonsLevel1@data)` subdivisions. We can get their names in local and english languages.
+
+```{r headNames, message=FALSE}
+head(unique(ChinaPolygonsLevel1@data$NAME_1))
+head(unique(ChinaPolygonsLevel1@data$VARNAME_1))
+head(unique(ChinaPolygonsLevel1@data$NL_NAME_1))
+```
+
+### Polygons
+Regarding the plygons, we can plot it quickly :
+
+```{r basicChinaMap, fig.width=9, fig.height=6}
+plot(ChinaPolygonsLevel1,  main = "China level 1")
+```
+
+## Cleaning data
+### Clean provincial names
+We would like a clean dataset with proper names in english and Chinese (simplified characters only), thus we need to make few substitutions.
+
+There are some province which names is recorded with both simplified and complex characters schemes separated by a `|`
+```{r provinceNames, message=FALSE}
+unique(ChinaPolygonsLevel1@data[grep("\\|", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1)
+```
+
+So let's substitute these with proper names and simplify also the full names of others
+```{r namesCleaning, message=FALSE}
+## Chinese names
+ChinaPolygonsLevel1@data$NL_NAME_1 <- gsub("^.*\\|", "", ChinaPolygonsLevel1@data$NL_NAME_1)
+ChinaPolygonsLevel1@data[grep("黑龍江省", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1 <- "黑龙江"
+ChinaPolygonsLevel1@data[grep("新疆维吾尔自治区", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1 <- "新疆"
+ChinaPolygonsLevel1@data[grep("内蒙古自治区", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1 <- "内蒙古"
+ChinaPolygonsLevel1@data[grep("宁夏回族自治区", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1 <- "宁夏"
+ChinaPolygonsLevel1@data[grep("广西壮族自治区", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1 <- "广西"
+ChinaPolygonsLevel1@data[grep("西藏自治区", ChinaPolygonsLevel1@data$NL_NAME_1),]$NL_NAME_1 <- "西藏"
+
+## English names
+ChinaPolygonsLevel1@data$NAME_1 <- as.character(ChinaPolygonsLevel1@data$NAME_1)
+ChinaPolygonsLevel1@data[grep("Xinjiang Uygur", ChinaPolygonsLevel1@data$NAME_1),]$NAME_1 <- "Xinjiang"
+ChinaPolygonsLevel1@data[grep("Nei Mongol", ChinaPolygonsLevel1@data$NAME_1),]$NAME_1 <- "Nei Menggu"
+ChinaPolygonsLevel1@data[grep("Ningxia Hui", ChinaPolygonsLevel1@data$NAME_1),]$NAME_1 <- "Ningxia"
+ChinaPolygonsLevel1@data$NAME_1 <- as.factor(ChinaPolygonsLevel1@data$NAME_1)
+```
+
+Here is the final list in simplified Chinese : `r paste(ChinaPolygonsLevel1@data$NL_NAME_1, sep =", ")`
+
+Here is the final list in english : `r paste(ChinaPolygonsLevel1@data$NAME_1, sep =", ")`
+
+### Prepare ggplot maps : Converting spacial polygon shapes to data frame
+
+Later we will use ggplot to plot China maps, we need to convert the polygons object into data frame with `fortify` function. 
+Region will be identified by names in simplified chinese
+
+```{r convertPoly2DataF, cache=TRUE}
+# Convert the spacial polygon shapes to data frame
+
+# Use level1 as index
+ChinaLevel1Data <- ChinaPolygonsLevel1@data
+ChinaLevel1Data$id <- ChinaLevel1Data$NL_NAME_1
+
+# Fortify the data (polygon map as dataframe)
+ChinaLevel1dF <- fortify(ChinaPolygonsLevel1, region = "NL_NAME_1")
+
+```
+
+## First map of China with level 1 subdivisions with ggplot
+
+### Provinces
+Let's make our first China ggplot map, we fill subdivisions depending on their types and their borders are colored based on type in Chinese.
+For this version we use the geom_map() function.
+
+```{r firstChinaMapggplot, cache=TRUE, fig.width=9}
+## Now we can make a simple map
+g <- ggplot()
+g <- g + geom_map(data = ChinaLevel1Data, aes(map_id = id, fill = ENGTYPE_1, col = TYPE_1), map = ChinaLevel1dF)
+g <- g + expand_limits(x = ChinaLevel1dF$long, y =  ChinaLevel1dF$lat)
+g <- g + coord_equal()
+g <- g + labs(x="Longitude", y="Latitude", title="Map of China level 1 subdivisions per type (using ggplot)")
+g <- g + theme_bw()
+print(g)
+```
+
+An alternative way is to merge all data in one data set and use a different approach for plotting the polygons (see references)
+
+```{r secondChinaMapggplot, cache=TRUE, fig.width=9}
+## Merge polygons and associated data in one data frame by id (name of the province in chinese)
+ChinaLevel1 <- merge(ChinaLevel1dF, ChinaLevel1Data, by = "id")
+
+## Create the ggplot using standard approach
+## group is necessary to draw in correct order, try without to understand the problem
+g <- ggplot(ChinaLevel1, aes(x = long, y = lat, fill = ENGTYPE_1, group = group))
+## projected shadow
+g <- g+ geom_polygon(aes(x = long + 0.7, y = lat - 0.5), color = "grey50", size = 0.2, fill = "grey50")
+## Province boundaries
+g <- g + geom_polygon(color = "white", size = 0.2)
+## to keep correct ratio in the projection
+g <- g + coord_equal()
+g <- g + labs(title = "China - level 1 subdivisions")
+print(g)
+
+```
+
+
+### Adding province names
+
+We want to plot province names, for that let's calculate the theoretical center of each province.
+
+```{r computeProvinceCenters}
+## Getting the center of each subdivision (to plot names or others)
+## ddply is from the plyr package
+
+Level1Centers <-
+        ddply(ChinaLevel1dF, .(id), summarize, clat = mean(lat), clong = mean(long))
+## Merge results in one data frame
+ChinaLevel1Data <- merge(ChinaLevel1Data, Level1Centers, all = TRUE)
+```
+
+Let's add the names on the previous map, we change the color fill using one of palettes available :
+http://www.cookbook-r.com/Graphs/Colors_%28ggplot2%29/
+
+```{r ChinaProvincesAndNames, cache=TRUE, fig.width=9, fig.height=6}
+## Add the province chinese names
+h <- g + geom_text(data = ChinaLevel1Data , aes(
+                x = jitter(clong, amount = 1), y = jitter(clat, amount = 1), label = id, size = 0.2, group = NULL, fill=NULL), show_guide = FALSE
+        ) 
+
+## Theme configuration
+h <- h + theme_bw() + 
+                theme(axis.text = element_blank(),
+                axis.title = element_blank(),
+                axis.ticks = element_blank(),
+                legend.position = c(0.9, 0.2),
+                legend.text = element_text(size = rel(0.7)),
+                legend.background = element_rect(color = "gray50", size = 0.3,
+                                           fill = "white"))
+
+## Change Palette
+h <- h + scale_fill_brewer(palette="Pastel1", name="Type")
+print(h)

@@ -1,0 +1,128 @@
+---
+title: "Under the hood - Software configuration of chinaPleth"
+author: "Chinapleth"
+date: "October 8, 2015"
+output: html_document
+---
+
+## Objective
+This is a short article to briefly describe the set of tools, software which are used by chinaPleth for data processing, statistical computing and publishing on this blog.
+
+In a nutshell :
+
+- linux as an operating system
+- R for satistical computing, data processing and visualisation
+- Rstudio as integrated development environement
+- Git as version control
+- Github for sharing the code
+- Rmarkdown for writing articles (weaving analysis text, code and output)
+- Wordpress as blog enging
+- Rwordpress to publish directly from markdown files to blog posts
+
+
+
+
+## Operating System
+chinaPleth use gnu/linux, for several reason., but the main one is the ease of use and integration of UTF-8 characters such as chinese characters. There are a lot of issues in Microsoft environment, thus even in Windows operating system, it is better to have a virtual machine running a gnu/linux machine. 
+
+Ubuntu is our choice, but there are a lot of other decent alternatives. Bellow are information about kernel version and distribution version.
+
+```{r}
+system("uname -r", intern = TRUE)
+system("cat /etc/lsb-release", intern = TRUE)
+```
+
+## R - Cran
+Chinapleth uses R for statistical computing and visualisations. The standard package provided with Ubunt is fine as well as all `r-cran*` packages.
+
+From https://cran.r-project.org/
+
+> R is ‘GNU S’, a freely available language and environment for statistical computing and graphics which provides a wide variety of statistical and graphical techniques: linear and nonlinear modelling, statistical tests, time series analysis, classification, clustering, etc. 
+
+```{r}
+version
+```
+
+
+## Rstudio
+For edition, publishing and many other actions, Chinapleth is using Rstudio.
+
+From https://www.rstudio.com/ : 
+
+> RStudio is an integrated development environment (IDE) for R. It includes a console, syntax-highlighting editor that supports direct code execution, as well as tools for plotting, history, debugging and workspace management. 
+
+```{r}
+system("apt list --installed | grep rstudio", intern = TRUE)
+```
+
+## Version control : Git & Gihub
+### Git
+For version control of scripts and files, Chinapleth uses Git. This amazingly powerfull even as a single user or with a small team.
+
+From https://git-scm.com/ :
+
+> Git is a free and open source distributed version control system designed to handle everything from small to very large projects with speed and efficiency. 
+
+```{r}
+system("apt list --installed | grep git/", intern = TRUE)
+```
+
+### Gihub
+
+From https://en.wikipedia.org/wiki/GitHub
+
+> GitHub is a Web-based Git repository hosting service. It offers all of the distributed revision control and source code management (SCM) functionality of Git as well as adding its own features.
+
+All the script distributed by Chinapleth are open source (see Licence details) unless specified otherwise
+Feel free to clone and use chinaPleth code :
+https://github.com/longwei66/chinaPleth
+
+There are some small issues to push smoothly code to github with latest versions of Rstudio, the best is to follow this guide to switch to ssh authentification. 
+http://www.r-bloggers.com/rstudio-pushing-to-github-with-ssh-authentication/
+
+
+## Publishing : Wordpress & RWordPress
+### Blog engine
+This blog is powered by wordpress with a theme from graphpaper press.
+https://wordpress.org/download/
+https://graphpaperpress.com/
+
+At a point of time, we may also consider 
+
+### Rmarkdown & reproducible research
+This is where interesting things start. R, key packages like sweave or Knit are perfect for reproducible research process. This article, as all chinaPleth posts is in fact an Rmd document (R Markdown) processed by Knit package as an html document.
+
+From https://cran.r-project.org/web/views/ReproducibleResearch.html 
+
+> The goal of reproducible research is to tie specific instructions to data analysis and experimental data so that scholarship can be recreated, better understood and verified. 
+
+> R largely facilitates reproducible research using literate programming; a document that is a combination of content and data analysis code. The Sweave function (in the base R utils package) and the knitr package can be used to blend the subject matter and R code so that a single document defines the content and the algorithms. 
+
+With such approach it is very easy to write reports, presentations which contains both text, code and resut of this code once processed in one document. The advantages are : 
+
+1. provide to the reader all the element to reproduce the output
+2. quickly update reports when data source are evolving, easy to build templates, etc...
+
+### From R to Wordpress
+As standard behaviour, knit package output and html page which can be viewed in a browser, to complete our publication process we use the Rwordpress package to post directly to our wordpress.
+
+Once configured as explained in (see http://yihui.name/knitr/demo/wordpress/), the publishing command is as simple as :
+```{r, eval=FALSE}
+library(knitr)
+knit2wp('this-post.Rmd', title = 'This post')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
