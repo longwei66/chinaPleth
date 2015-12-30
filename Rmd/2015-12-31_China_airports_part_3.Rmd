@@ -13,7 +13,7 @@ One of the big problem for anybody interested in China and data science is the a
 
 The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
 
-In this second part, we will do some exploratory data analysis and data cleaning of the OurAirports data set we obtained in [part 2](http://chinapleth.io/2015/12/30/getting-and-cleaning-data-example-of-chinese-airports-part-25/)
+In this third part, we will do some exploratory data analysis and data cleaning of the OurAirports data set we obtained in [part 1](http://chinapleth.io/2015/12/29/getting-and-cleaning-data-example-of-chinese-airports-part-15/)
 
 
 ### Dependencies
