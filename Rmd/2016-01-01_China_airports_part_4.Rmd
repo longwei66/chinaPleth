@@ -1,0 +1,412 @@
+---
+title: "Getting and cleaning data, example of Chinese airports - Part 4/5"
+author: "chinaPleth"
+date: "January 1, 2015"
+output: 
+  html_document: 
+    toc: no
+---
+
+## Introduction
+### Objective  
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+
+The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
+
+In this forth part, we merge the two data obtained in [part 2](http://chinapleth.io/2015/12/30/getting-and-cleaning-data-example-of-chinese-airports-part-25/) and [part 3](http://chinapleth.io/2015/12/31/getting-and-cleaning-data-example-of-chinese-airports-part-35/) sets by IATA.FAA code and will clean / fix missing data. We will create the separate dataset with the complement which will be fixed in next part.
+
+In order to compare and fix missing or wrong data we are going to use different tools :  
+
+- `stringdist` from the package of the same name to check the distance between two chains of characters
+- the google map API which give back elevation for a set of longitute / latitude
+- `gmaps` to return maps of an area where airports are supposed to be located
+
+
+### Dependencies
+We will need few standard packages as loaded bellow.
+
+```{r libLoading, message=FALSE}
+library(maptools); library(reshape2)
+library(grid); library(dplyr)
+library(ggplot2); library(gmaps)
+library(ggmap); library(jsonlite)
+library(Amelia)
+```
+
+### Loading part 3 objects
+
+```{r loadPart1, echo=TRUE,eval=TRUE}
+load(file = "./chinese-airports-part-3.Rda")
+```
+
+
+## Merging the two datasets by IATA.FAA code and extracting complements 
+We will use IATA.FAA codes to identify the airports. First let's create subset of airport with and without IATA codes.
+
+```{r isolateNoIATA}
+OAwoIATA <- airportChinaOurairports[is.na(airportChinaOurairports$IATA.FAA),]
+OAwithIATA <- airportChinaOurairports[!is.na(airportChinaOurairports$IATA.FAA),]
+OFwoIATA <- airportChinaOpenflights[is.na(airportChinaOpenflights$IATA.FAA),]
+OFwithIATA <- airportChinaOpenflights[!is.na(airportChinaOpenflights$IATA.FAA),]
+```
+
+Let's merge the two sub data sets with IATA code present. Then we isolate the remaining airport which have no match.
+Regroup with airport without IATA and check if there are possible match by ICAO codes.
+
+```{r mergingIATA}
+## Merge by IATA, drop non matchin case
+IATA <- merge(OAwithIATA, OFwithIATA, by = "IATA.FAA")
+nrow(IATA)
+
+## Extract OA airports not matching IATA code from OF
+## And regroup with Airports without IATA
+OAout <- OAwithIATA[!(OAwithIATA$IATA.FAA %in% IATA$IATA.FAA),]
+OAout <- rbind(OAout, OAwoIATA)
+## Extract OF airports not matching IATA code from OA
+OFout <- OFwithIATA[!(OFwithIATA$IATA.FAA %in% IATA$IATA.FAA),]
+OFout <- rbind(OFout, OFwoIATA)
+## Check if there could be match by ICAO codes when present
+sum(OAout[!is.na(OAout$ICAO),] %in% OFout[!is.na(OFout$ICAO),])
+```
+
+We have now three datasets to work on :  
+
+- `IATA` which contains common airports by IATA code between openflight and ourairport data set. We need to define a strategy to select or merge their paramaters if data is different (which elevation choose when different, which name, etc...)
+- `OFout` airport from Openflight which have no match by IATA nor ICAO in ourairpot data or no IATA/ICAO code.
+- `OAout` airport from ourairport which have no match by IATA nor ICAO in openflights data or no IATA/ICAO code
+
+For the two last dataset, we merge them and we will have to find a way to collect missing data and add these to IATA data set in the later part of this report.
+
+```{r actionPlan3}
+# add missing categories to OFout
+OFout$type.airport <- NA
+OFout$scheduled.service <- NA
+OFout$airport.wikipedia.link <- NA
+OFout$region.name <- NA      
+airports_2_check <- rbind(OFout, OAout)
+
+missmap(IATA, main = "Missingness map for merged airport list by IATA.FAA Code")
+missmap(airports_2_check, main = "Missingness map for remaining airports to be checked (not in both OA / OF sets")
+```
+
+
+
+## Checking and fixing IATA dataset
+### Reorganising columns
+We update column order to get a clearer view when comparing data.
+
+```{r rearrangeIATA}
+# reorder
+IATA <- dplyr::select(IATA,
+        IATA.FAA, ICAO.x, ICAO.y,
+        name.x, name.y, city.x, city.y,
+        latitude.deg.x, latitude.deg.y,
+        longitude.deg.x, longitude.deg.y,
+        elevation.m.x, elevation.m.y,
+        category.x, category.y,
+        region.name, type.airport, scheduled.service, airport.wikipedia.link
+        ) 
+```
+
+### Fixing ICAO codes  
+Let's clean the ICAO codes, we will use the one from OurAiports. All missing values of OpenFlight are included in Ouraiports. Missing values of OurAirports are not found in Openflight dataset (see previous missingness map)
+
+
+```{r full1}
+IATA$ICAO <- IATA$ICAO.x
+is.na(IATA[is.na(IATA$ICAO.x),]$ICAO.y)
+IATA <- dplyr::select(IATA, -ICAO.x, -ICAO.y)
+missmap(IATA)
+```
+
+
+### Fixing city name  
+No missing data in city.y, we replace missing city.x by associated city.y.
+There seems to be small typos in both dataset (always for chinese cities), we compare city names by calculating the distance between the character vectors.
+We keep city.x which seems better.
+
+```{r full4, message=TRUE}
+IATA[is.na(IATA$city.x),]$city.x <- IATA[is.na(IATA$city.x),]$city.y 
+
+library(stringdist)
+dist <- stringdist(IATA$city.x, IATA$city.y)
+hist(dist, breaks = 40)
+dplyr::select(IATA[dist > 0,], city.x, city.y, name.x)
+
+IATA$city <- IATA$city.x
+IATA <- dplyr::select(IATA, -city.x, -city.y)
+missmap(IATA)
+```
+
+
+### Fixing airport names  
+No missing data in name.y or name.x, we need to compare both by string distance. name.x is more detailled and better written. Except for Taoxian Airport.
+
+```{r full5}
+dist <- stringdist(IATA$name.x, IATA$name.y)
+hist(dist, breaks = 40)
+head(dplyr::select(IATA[dist > 0,], name.x, name.y))
+IATA[IATA$name.x == "Taoxian Airport",]$name.x <- "Shenyang Taoxian International Airport"
+IATA$name <- IATA$name.x
+IATA <- dplyr::select(IATA, -name.x, -name.y)
+missmap(IATA)
+```
+
+
+### Fixing longitude.deg, latitude.deg  
+Values for longitude and latitude are different in the two datasets, we study in details the distance over 0.01 degree which represent roughly 500 meters. 
+
+```{r mapAO2, warning=FALSE}
+dist1 <- abs(IATA$longitude.deg.x - IATA$longitude.deg.y)
+dist2 <- abs(IATA$latitude.deg.x - IATA$latitude.deg.y)
+
+par(mfrow = c(1,2))
+hist(log(dist1), breaks = 40)
+hist(log(dist2), breaks = 40)
+summary(dist1)
+summary(dist2)
+
+
+g <- ggplot() + theme_bw()
+## airports with elevation
+g <- g + geom_point(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.x, y = latitude.deg.x), col = "firebrick", pch = 3)
+## airport with 0 m  as elevation in red
+g <- g + geom_point(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.y, y = latitude.deg.y), col = "blue", spch = 1)
+g <- g + geom_text(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.x, y = latitude.deg.x, label=IATA.FAA), size = 3, vjust = -1)
+print(g)
+```
+
+The map above shows there are significant error between the two datasets, now let's sample few cases to check which dataset is probably the most accurate.
+We use for that the `ggmap` package to display side by side satellite images around the latitude and longitude coordinnates of the airport in both data set for the airport with largest distance. We reuse the function `multiplot()` available [here](http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/) to display images side by side (OF vs. OA)
+
+```{r multiplot, echo=FALSE}
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+
+```{r checkLocation, message=FALSE, fig.width=3, fig.height=3}
+mapAirport <- function(long,lat,delta=0.1,z=6,t="satellite") {
+        mapImageData1 <- ggmap::get_map(location = c(lon = long, lat = lat),
+                                 color = "color",
+                                 source = "google",
+                                 maptype = "satellite",
+                                 zoom = z)
+        ggmap::ggmap(mapImageData1,
+              extent = "device",
+              ylab = "Latitude",
+              xlab = "Longitude")
+}
+
+
+toCheck <- dplyr::select(IATA[dist1 > 0.12 & dist2 > 0.12,], IATA.FAA, ICAO, latitude.deg.x, longitude.deg.x, latitude.deg.y,  longitude.deg.y)
+
+for(i in 1:nrow(toCheck)){
+        p1 <- mapAirport(long = toCheck[i,]$longitude.deg.x, lat = toCheck[i,]$latitude.deg.x, z = 15) + geom_text(aes(x = toCheck[i,]$longitude.deg.x, y = toCheck[i,]$latitude.deg.x, label=paste("OA", toCheck[i,]$IATA.FAA, "-", toCheck[i,]$ICAO)),size = 4, col = "firebrick")
+       p2 <- mapAirport(long = toCheck[i,]$longitude.deg.y, lat = toCheck[i,]$latitude.deg.y, z = 15) + geom_text(aes(x = toCheck[i,]$longitude.deg.y, y = toCheck[i,]$latitude.deg.y, label=paste("OF:", toCheck[i,]$IATA.FAA, "-", toCheck[i,]$ICAO)),size = 4, col = "firebrick")
+       multiplot(p1,p2, cols=2)
+        }
+
+
+```
+
+As a conclusion for this part, OA seems to be more accurate than OF regarding the airport longitude and latitude. We decide to keep OA data and drop OF data. **note** we should confirm that googlemap satellite is accurate in China and there is not shift phenomenum. 
+
+```{r fixLocation, message=FALSE}
+IATA$latitude.deg <- IATA$latitude.deg.x
+IATA$longitude.deg <- IATA$longitude.deg.x
+IATA <- dplyr::select(IATA, -latitude.deg.x, -latitude.deg.y, -longitude.deg.x, -longitude.deg.y)
+```
+
+Nevertheless as shown in the case of ZLXH airport the data of OA seems innacurate. Further check is probably needed. **note 2** Comparison is done here manually, we will see in another post how to make this detection using machine learning algorithms.
+
+
+### Fixing categories
+They are same in both datasets except the following. We decide to keep OF categories.
+
+```{r fixCat}
+## mismatch in category
+IATA[!(IATA$category.x == IATA$category.y),]$name
+IATA$category <- IATA$category.y
+IATA <- dplyr::select(IATA, -category.x, -category.y)
+missmap(IATA)
+```
+
+
+
+
+### Fixing elevation.m data  
+As we have decided to drop OF latitude and longitude we should also drop the elevation from OF dataset.
+
+```{r full3}
+IATA$elevation.m <- IATA$elevation.m.x
+IATA <- dplyr::select(IATA, -elevation.m.y, -elevation.m.x)
+```
+
+We have two actions to check and fix elevation data : check if the elevation is consistent with latitude and longitude and find missing elevation data.
+
+We can use for this purpose the Google Map API which returns in JSON format the elevation value for a given set of latitude / longitude.
+
+```{r checkElevation, cache=TRUE}
+# function which return evelevation based on longitude / latitude
+# Need internet connection, use google maps elevation API
+getElevation <- function(long,lat) {
+        lat <- as.numeric(lat)
+        long <- as.numeric(long)
+        # elevation API - google
+        baseUrl <- "http://maps.google.com/maps/api/elevation/json?locations="
+        Url <- paste(baseUrl, lat, "," , long, sep = "")
+        jsonData <- fromJSON(Url)
+        Sys.sleep(0.2)
+        elevation <- jsonData$results$elevation
+        elevation
+}
+## get elevation for all aiports
+#IATA$elevationCheck <- 1
+IATA$elevationCheck <- apply(IATA, 1, function(x) getElevation(x[10],x[9]))
+```
+
+We are now going to check the gap between google data and OA dataset.
+
+```{r replaceElevation}
+## replace missing elevation by google values
+IATA[is.na(IATA$elevation.m),]$elevation.m <- IATA[is.na(IATA$elevation.m),]$elevationCheck
+dist <- (abs(IATA$elevation.m - IATA$elevationCheck))
+hist(dist, breaks = 40)
+summary(dist)
+dplyr::select(IATA[dist > 30,], IATA.FAA, ICAO, elevation.m, elevationCheck, longitude.deg, latitude.deg)
+IATA[dist > 30,]$elevation.m <- IATA[dist > 30,]$elevationCheck
+IATA <- dplyr::select(IATA, -elevationCheck)
+missmap(IATA)
+```
+
+We have `r sum(dist > 30)` aiports whith more than 30 meters of elevation error. After checking, we find out that google data is more accurate and use it for these 3 airports.
+
+We use information from [http://www.geoplaner.com/#Coordinate-Converter] for setting
+
+
+### Fixing missing ICAO & wikipedia airport links
+We are still missing two ICAO codes and a bunch of wikipedia airports links. Let's solve this matter by scrapping wikipedia to get the missing values. We will use the great rvest package [see example on r-blogger](http://www.r-bloggers.com/using-rvest-to-scrape-an-html-table/).
+
+```{r checkWikipedia, cache=TRUE}
+library("rvest")
+url <- "https://en.wikipedia.org/wiki/List_of_airports_in_China"
+# Xpath to get the whole Table
+# //*[@id="mw-content-text"]/table[1]
+wikiAirports <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="mw-content-text"]/table[1]') %>%
+  html_table()
+wikiAirports <- wikiAirports[[1]]
+names(wikiAirports) <- c("city", "ICAO","IATA.FAA","name" )
+# removing empty lines
+wikiAirports <- wikiAirports[wikiAirports$IATA.FAA != "ÿ",]
+# Replace missing values by NAs
+wikiAirports[wikiAirports$IATA.FAA == "",]$IATA.FAA <- NA
+wikiAirports[wikiAirports$ICAO == "",]$ICAO <- NA
+
+# Get the airport wikipedia links
+# //*[@id="mw-content-text"]/table[1]//td[4]//a
+wikiAirports.link <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="mw-content-text"]/table[1]//td[4]//a') %>%
+  html_attr("href")
+# complete the url
+wikiAirports$airport.wikipedia.link <-paste("http://en.wikipedia.org", wikiAirports.link , sep="")
+
+# Merge IATA airport data with wikipedia data by IATA.FAA code
+IATA2 <- merge(IATA, wikiAirports, by = "IATA.FAA", all.x = FALSE)
+missmap(IATA2)
+
+# replace missing wikipedia link of IATA by wikipedia information
+IATA2[is.na(IATA2$airport.wikipedia.link.x),]$airport.wikipedia.link.x <- IATA2[is.na(IATA2$airport.wikipedia.link.x),]$airport.wikipedia.link.y
+
+# replace missing ICAO code in IATA by wikipedia one
+IATA2[is.na(IATA2$ICAO.x),]$ICAO.x <- IATA2[is.na(IATA2$ICAO.x),]$ICAO.y
+# Check difference between ICAO codes in IATA data and wikipedia
+dplyr::select(IATA2[stringdist(IATA2$ICAO.x, IATA2$ICAO.y) > 0,], ICAO.x,ICAO.y, name.x)
+# Replace NA ICAO from IATA by wiki data
+IATA2[stringdist(IATA2$ICAO.x, IATA2$ICAO.y) > 0,]$ICAO.x <- 
+IATA2[stringdist(IATA2$ICAO.x, IATA2$ICAO.y) > 0,]$ICAO.y
+IATA2$ICAO <- IATA2$ICAO.x
+IATA2 <- dplyr::select(IATA2, -ICAO.x, -ICAO.y)
+
+missmap(IATA2)
+
+## As url a extracted from wikipedia which is checked by the community we decide to keep wikipedia data for link name, but not for city
+IATA2$airport.wikipedia.link <- 
+IATA2$airport.wikipedia.link.y
+IATA2$name <- 
+IATA2$name.y
+IATA2$city <- 
+IATA2$city.x
+IATA2 <- dplyr::select(IATA2, -airport.wikipedia.link.x, -airport.wikipedia.link.y, -name.x, -name.y, -city.x, -city.y)
+
+## We complete missing region for FUG
+IATA2[IATA2$IATA.FAA == "FUG",]$region.name <- "Anhui Province"
+
+# Let's check IATA airport not present in wikiAirports
+IATA_nowiki <- IATA[!(IATA$IATA.FAA %in% wikiAirports$IATA.FAA),]
+# Only one airport which is in fact closed
+IATA_nowiki$type.airport <- "closed"
+IATA2 <- rbind(IATA2,IATA_nowiki)
+
+missmap(IATA2)
+```
+
+## Saving objects for next part
+Let's now save the different objects to be reused in the next part of this post.
+
+```{r saveObjects, cache=FALSE}
+save( list = c("IATA", 
+               "airports_2_check"
+               ),
+      file = "chinese-airports-part-4.Rda")
+```
+
+In the next post, we will Creating one data set and fetching missing data.
+
+
