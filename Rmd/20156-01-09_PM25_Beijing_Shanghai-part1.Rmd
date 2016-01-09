@@ -153,7 +153,7 @@ downloadIF <- function(url,file,folder) {
 ### Available data for China
 From the US website about AQI data in China http://www.stateair.net, we have created a csv file of available url of data sources for the cities of : Beijing, Shanghai, Chengdu, Guangzhou and Shenyang. Please note that not all cities have data available before 2013.
 
-This url list is available in our [git repo](http://url.here)
+This url list is available in our [git repo](https://github.com/longwei66/chinaPleth/blob/master/data/share/aqi/aqi-cities-data-source-url.csv)
 
 ```{r loadURLdatasources}
 aqiChinaDatasources <- read.csv(
