@@ -1,0 +1,337 @@
+---
+title: "About pollution,particle matters, PM2.5, Beijing vs. Shanghai and other cities - Part 1"
+author: "chinaPleth"
+date: "January 9th, 2016"
+output: 
+  html_document: 
+    toc: no
+---
+
+## Introduction
+### Objective
+Pollution reported in Beijing (and even Shanghai) at the end of 2015 reached terrible levels, there has been a lot of comments in the Chinese and international news about air pollution in China. We will study in this group of posts the pollution levels PM2.5 in Beijing and compare it to previous years and to other cities such as Guangzhou and Shanghai, Paris.
+
+### Overall Process :  
+1. Get data : we will use US embassy PM2.5 hourly readings for China and airparif for France
+2. Check and clean data
+3. Exploratory analysis
+4. Comparison of 2015 vs. 2014 and 2013
+5. Comparison
+
+In this first part we will cover steps 1 and 2, how to get and clean the AQI / PM2.5 data.
+
+### Required libraries
+We need several R packages for this study.
+
+```{r loadLibraries, message=FALSE, warning=FALSE}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+# check if we are in the right working directory
+if(gsub("(.*)\\/", "", getwd()) != "Rmd") {setwd("./Rmd")}
+```
+
+
+## Few words about PM2.5
+### Definition and reference
+
+**What is AQI ?**
+From [airnow.gov](http://www.airnow.gov/index.cfm?action=aqibasics.aqi) 
+
+> The AQI is an index for reporting daily air quality. It tells you how clean or polluted your air is, and what associated health effects might be a concern for you. [...] EPA calculates the AQI for five major air pollutants.
+
+The AQI is the highest value calculated for each pollutant as follows: Ozone, PM2.5, PM10, CO, SO2, NO2. In China the main matter is from far the PM2.5 pollutant.
+
+**What is the PM2.5 ?**
+From [airnow.gov](http://www.airnow.gov/index.cfm?action=aqibasics.particle) 
+
+> Particle pollution, also called particulate matter or PM, is a mixture of solids and liquid droplets floating in the air. Some particles are released directly from a specific source, while others form in complicated chemical reactions in the atmosphere. Particles come in a wide range of sizes. Fine particles (PM2.5) are 2.5 micrometers in diameter or smaller, and can only be seen with an electron microscope. Fine particles are produced from all types of combustion, including motor vehicles, power plants, residential wood burning, forest fires, agricultural burning, and some industrial processes. Numerous scientific studies connect particle pollution exposure to a variety of health issues
+
+PM2.5 particles are measured by sensors which provide readings in micro grams per meter cube of air.
+
+We are going to use the american standard which is the most recognized internationally. We will discuss in the conclusion the difference with the Chinese standard and its impact on our conclusions.
+The reference document for AQI reporting is "Technical Assistance Document for the Reporting of Daily Air Quality – the Air Quality Index (AQI)" from the U.S. Environmental Protection Agency (EPA-454/B-13-001 of December 2013)
+
+### AQI index and PM2.5 R functions
+The function to convert PM2.5 concentration to AQI index is linear with several breakpoints defined in US standard. The last breakpoints is matching 500 ppm PM2.5, we will use the same slope as last band for concentration above this point.
+
+```{r pm25toAqi, message=FALSE, warning=FALSE}
+## Concentration to AQI
+pm25_to_aqi <- function(Cp, standard = "US"){
+        if(is.na(Cp) | Cp < 0){
+                Ip <- NA} else {
+                if(standard=="US"){ ## Configure AQI banding, ref  EPA-454/B-13-001, December 2013
+                bandsUS <- as.data.frame(rbind(
+                        c(12,0,50,0),
+                        c(35.4,12.1,100,51),
+                        c(55.4,35.5,150,101),
+                        c(150.4,55.5,200,151),
+                        c(250.4,150.5,300,201),
+                        c(350.4,250.5,400,301),
+                        c(500.4,350.5,500,401)))
+                names(bandsUS) <- c("BPhi", "BPlo", "Ih", "Ilo")}
+        
+                ## Get BPhi, BPlo, Calculate AQI
+                if(Cp <= 500.4) {
+                        BPlo <- max(bandsUS[Cp >= bandsUS$BPlo,]$BPlo)
+                        Ilo <- max(bandsUS[Cp >= bandsUS$BPlo,]$Ilo)
+                        BPhi <- min(bandsUS[Cp <= bandsUS$BPhi,]$BPhi)
+                        Ih <- min(bandsUS[Cp <= bandsUS$BPhi,]$Ih)
+                        Ip <- (Ih-Ilo)/(BPhi-BPlo)*(Cp-BPlo)+Ilo
+                } else {
+                        Ip <- (500-401)/(500.4-350.5)*(Cp-500.4)+500
+                }}
+        Ip
+        } 
+```
+
+
+### Visualisation of relation between AQI and Pm2.5
+
+```{r AQIvsPM2.5, message=FALSE, warning=FALSE, fig.width=10, fig.align="center"}
+# generate points from 1 to 500 ppm of PM2.5
+a <- (1:1000)/2
+
+curve <- as.data.frame(list("pm2.5" = a, "aqi" = sapply(a,pm25_to_aqi)))
+p <- ggplot() + theme_bw()
+st <- 0
+alp <- 0.9
+p <- p + geom_rect(aes(xmin = st, xmax = 500, ymin = 0, ymax = 50), fill = "#00E400",
+  alpha = alp)
+p <- p +  geom_rect(aes(xmin = st, xmax = 500, ymin = 50, ymax = 100), fill = "#FFFF00",
+  alpha = alp)
+p <- p +  geom_rect(aes(xmin = st, xmax = 500, ymin = 100, ymax = 150), fill = "#FF7E00",
+  alpha = alp)
+p <- p +  geom_rect(aes(xmin = st, xmax = 500, ymin = 150, ymax = 200), fill = "#FF0000",
+  alpha = alp)
+p <- p +  geom_rect(aes(xmin = st, xmax = 500, ymin = 200, ymax = 300), fill = "#8F3F97",
+  alpha = alp)
+p <- p +  geom_rect(aes(xmin = st, xmax = 500, ymin = 300, ymax = 500), fill = "#7E0023",
+  alpha = alp)
+p <- p +  annotate("text", x = rep(480,6), y = c(25,75,125,175,250,380), 
+                   label = c("Good",
+                             "Moderate",
+                             "Unhealthy for Sensitive Groups",
+                             "Unhealthy",
+                             "Very Unhealthy",
+                             "Hazardous"
+                             ), size =5.5, hjust = 1)
+p <- p + geom_point(data = curve, aes(x = pm2.5, y = aqi), col = "blue", size = 2)
+p <- p + ggtitle("Evolution of AQI vs. PM2.5") + xlab("Particule matter, pm2.5 (in micro gram per m3)") + ylab("AQI, air quality index")
+p <- p + annotate("text", x = 10, y = 480, label = "(c) chinaPleth.io", col = "white", hjust = 0)
+p
+```
+
+We can see clearly from the graph above that in the lower concentration of PM2.5 the AQI is increasing fast, 50 micro grams of particles per m3 makes 150 of AQI but then after this point the AQI is increasing slowly. This is important to know in China as AQI is often between 150 and 200, this makes actually a huge gap in term of particle concentration which are respectively between 55 and 150 (three times more!).
+
+### Notes about averaging, nowcast and instantcast
+Effect on health of particle matters are know and studied for 24h averages. A good [article](http://aqicn.org/faq/2015-03-15/air-quality-nowcast-a-beginners-guide/) explains the problem.
+
+> The concept behind the nowcast is to compensate the "24 hours averaging", which should be used when converting concentrations to AQI. The reason for this averaging is that the AQI scale specifies that each of the Levels of Health Concern (i.e. Good, Moderate,... Unhealthy...) is valid under a 24 hours exposure[1]. For example, when seeing a 188 AQI (Unhealthy), one need to read it as "if I stay out for 24 hours, and the AQI is 188 during those 24 hours, then the health effect is Unhealthy". This is quite different from saying that "if the AQI reported now is 188, then the health effect is Unhealthy".
+
+As the dynamic of air pollution can be very active in China (especially in Beijing), we will not use any averaging in our studies and use the instant readings (instantcast).
+
+
+## Getting data for China
+### Function to download data files if not existing
+We build a function which download a set of URL and store them in a directory. The download is only done if the file does not exists.
+
+```{r functionGettingData}
+downloadIF <- function(url,file,folder) {
+       # generate full file name
+       fileName <- paste(folder,file,sep = "/")
+       # Download only if file does not exists
+       if(!file.exists(fileName)){
+                       download.file(url = url, destfile = fileName, 
+                              method = "wget", quiet = FALSE,
+                              mode = "w", cacheOK = TRUE)
+               FALSE
+               } else {TRUE}
+        }
+```
+
+### Available data for China
+From the US website about AQI data in China http://www.stateair.net, we have created a csv file of available url of data sources for the cities of : Beijing, Shanghai, Chengdu, Guangzhou and Shenyang. Please note that not all cities have data available before 2013.
+
+This url list is available in our [git repo](http://url.here)
+
+```{r loadURLdatasources}
+aqiChinaDatasources <- read.csv(
+        "../../data/chinaPlethData/share/aqi/aqi-cities-data-source-url.csv", 
+        header = TRUE, stringsAsFactors = FALSE)
+aqiChinaDatasources$folder <- paste(
+        "../../data/chinaPlethData/ext/aqi",
+        aqiChinaDatasources$country,
+        aqiChinaDatasources$city,sep="/")
+aqiChinaDatasources$file <- gsub("(.*)\\/", "", aqiChinaDatasources$url)
+```
+
+### Download data for China
+```{r downloadAllaqiData}
+check <- NULL
+for(i in 1:nrow(aqiChinaDatasources)){
+        check <- c(check,
+                   downloadIF(
+                           url = aqiChinaDatasources$url[i],
+                           file = aqiChinaDatasources$file[i],
+                           folder = aqiChinaDatasources$folder[i]))
+}
+```
+
+On a total of `r length(check)` url, we downloaded `r length(check)-sum(check)` file(s) and `r sum(check)` files were already in our folder.
+
+
+## Getting data for France  
+There are few data available for pm2.5 in France, most of the reports include only PM10 (larger particles), however, the association [airparif](http://www.airparif.asso.fr/stations/index/) proposes the readings for few of them, including **Paris Centre**. It is not possible to download the data directly, you have to register first with your email [here](http://www.airparif.asso.fr/telechargement/telechargement-station) and wait for ~1h to get access to the link.
+
+```{r parisAqiSource}
+parisAQIdatafile <-"../../data/chinaPlethData/ext/aqi/France/Paris/20110721_20151231-PA04C_auto.csv"
+```
+
+## Importing, Checking and cleaning
+### China
+#### Reading data for China
+Once data sets have been downloaded in previous section, we are now going to read the data in R
+
+```{r functionReadingAqi, message=FALSE, cache=TRUE}
+# Function to read AQI data from csv file to data.frame
+load_aqi_data <- function(filepath,country,city,year) {
+        dF <-read.csv(
+             filepath, sep = ",", header = FALSE, stringsAsFactors = FALSE, 
+             strip.white = TRUE, skip = 3)
+     ## return the dataframe of AQI data, fix variable names
+     names(dF) <- make.names(dF[1,]); dF <- dF[2:nrow(dF),]
+     dF$country <- country
+     dF$city <- city
+     dF$year <- year
+     dF}
+# Function to read a bunch of csv files specified in a vector and return on list of data.frames
+aqi <- NULL
+for(i in 1:nrow(aqiChinaDatasources)){
+        # extract file name (end of url)
+        filepath <- paste(aqiChinaDatasources$folder[i],
+                          aqiChinaDatasources$file[i],sep = "/")
+        message(filepath)
+        aqi <- rbind(aqi,
+                     load_aqi_data(filepath = filepath,
+                                   country = aqiChinaDatasources$country[i],
+                                   city = aqiChinaDatasources$city[i],
+                                   year = aqiChinaDatasources$year[i]))
+        message(nrow(aqi))
+                     }
+```
+
+#### Cleaning data for China 
+We obtained a data set with `r ncol(aqi)` columns and `r nrow(aqi)` rows which will need some checks and cleaning. It consists in the pm2.5 readings for `r length(unique(aqi$city))` cities, `r unique(aqi$city)` in `r unique(aqi$country)` country(ies). The variable are : `r names(aqi)`.
+
+```{r cleanAQIdataframe, cache=TRUE}
+# Site
+# is equivalent to city, we won't keep it
+sum(aqi$Site == aqi$city) - nrow(aqi)
+# Parameter
+# There are only PM2.5 readings in the data set, we won't keep the column
+unique(aqi$Parameter)
+# Date..LST.
+# the format of 2015 and other year is different
+# some are in YYYY-MM-DD
+format1 <-  sum(grepl(pattern = "^20[0-9][0-9]-.*",x = aqi$Date..LST.))
+# some are in D/M/YYYY
+format2 <- sum(grepl(pattern = ".*\\/.*\\/20[0-9][0-9]",x = aqi$Date..LST.))
+# These two formats covers the dataset
+format1 + format2 - nrow(aqi)
+# we convert the character string as "POSIXlt" "POSIXt"
+# for each form
+aqi$date.time <- as.POSIXlt(strptime("2000-12-31 12:00", "%Y-%m-%d %H:%M"))
+testFormat1 <- grepl(pattern = "^20[0-9][0-9]-.*",x = aqi$Date..LST.)
+testFormat2 <- grepl(pattern = ".*\\/.*\\/20[0-9][0-9]",x = aqi$Date..LST.)
+aqi[testFormat1,]$date.time <- strptime(aqi[testFormat1,]$Date..LST., "%Y-%m-%d %H:%M")
+aqi[testFormat2,]$date.time <- strptime(aqi[testFormat2,]$Date..LST., "%m/%d/%Y %H:%M")
+summary(aqi$date.time)
+# Nothing to do for year
+class(aqi$year)
+unique(aqi$year)
+# We need to convert month,day in integer
+class(aqi$Month); unique(aqi$Month); aqi$Month <- as.numeric(aqi$Month)
+class(aqi$Day); unique(aqi$Day); aqi$Day <- as.numeric(aqi$Day)
+class(aqi$Hour); unique(aqi$Hour); aqi$Hour <- as.numeric(aqi$Hour)
+# We need to convert Value in integer under the variable pm2.5
+aqi$pm2.5 <- as.numeric(aqi$Value)
+# Some of the data are not valid as stated in QC.name, these are 0 and -999
+# we should replace these by NA
+unique(aqi[aqi$QC.Name == "Missing",]$pm2.5)
+aqi[aqi$QC.Name == "Missing",]$pm2.5 <- NA
+# we notice that some Values are still negatives or -999
+# we replace them by NA and update QC.name by missing
+aqi[!is.na(aqi$pm2.5) & aqi$pm2.5 < 0,]$QC.Name <- NA
+aqi[!is.na(aqi$pm2.5) & aqi$pm2.5 < 0,]$pm2.5 <- NA
+# we won't need the parameter Duration
+unique(aqi$Duration)
+# we won't need the parameter Year as we have year
+sum(as.numeric(aqi$Year) == aqi$year) - nrow(aqi)
+# Let's keep only what we need
+aqi <- select(aqi,-Site,-Parameter,-Year,-Unit, -Date..LST., -Value, -Duration)
+# Let's calculate the aqi index value with the function defined before
+aqi$aqi <- sapply(aqi$pm2.5,pm25_to_aqi)
+# Let's rename variable and reorder
+names(aqi) <-  c("month","day","hour","measurement.available","country","city","year","date.time","pm2.5", "aqi")
+aqi <- select(aqi, country, city, date.time, year, month, day, hour, measurement.available, pm2.5, aqi)
+```
+
+### Paris
+#### Reading data for Paris
+```{r readParisAqidata}
+# Paris
+ParisAqi <- read.csv(parisAQIdatafile, sep = ";", na.strings = "n/d", stringsAsFactors = FALSE, header = FALSE, skip = 2)
+names(ParisAqi) <- c("date",  "heure", "PM25",  "PM10",  "O3",    "NO2",   "CO")
+```
+
+#### Cleaning data for Paris
+
+```{r cleanParisAqi, cache=TRUE}
+## identify NA values
+## create measurement.available column
+ParisAqi$measurement.available <- "Valid"
+ParisAqi[is.na(ParisAqi$PM25),]$measurement.available <- "Missing"
+## create date.time variable
+ParisAqi$date.time <- paste(ParisAqi$date, ParisAqi$heure, sep = "-")
+## select only the variable we need
+ParisAqi <- select(ParisAqi, date.time, PM25, measurement.available)
+## change names
+names(ParisAqi) <- c("date.time", "pm2.5", "measurement.available")
+## convert the character variable to date format
+ParisAqi$date.time <- strptime(ParisAqi$date.time, "%d/%m/%Y-%H")
+## add reference fields
+ParisAqi$country <- "France"
+ParisAqi$city <- "Paris"
+ParisAqi$year <- year(ParisAqi$date.time)
+ParisAqi$month <- month(ParisAqi$date.time)
+ParisAqi$day <- day(ParisAqi$date.time)
+ParisAqi$hour <- hour(ParisAqi$date.time)
+ParisAqi$aqi <- sapply(ParisAqi$pm2.5,pm25_to_aqi)
+## order the fields
+ParisAqi <- select(ParisAqi,country,city,date.time,year,month,day,hour,measurement.available,pm2.5,aqi)
+```
+
+## Merging China and Paris data
+```{r bindAQI}
+aqi <- rbind(aqi,ParisAqi)
+```
+
+
+## Conclusion
+
+We have now a quite complete / clean data set of pm2.5 levels and associated aqi indexes. We will explore this interesting data set in the next part but before, as a conclusion, we propose an overview of the trend of the readings per city in the plot bellow. We can start to guess difference between cities, we will have to focus on later years, since 2013 as only Beijing have earlier data.
+
+```{r overviewplot, fig.width=10, cache=TRUE, fig.align="center", message=FALSE}
+qplot(data = aqi, x = date.time, y = pm2.5, facets = city ~ ., main = "Evolution of pm2.5 concentration in China and Paris")
+```
+
+Let's save the data frame for next part
+```{r saveObjects, cache=FALSE}
+save( list = c("aqi"
+               ),
+      file = "aqi-1.Rda")
+```
+
+
+
