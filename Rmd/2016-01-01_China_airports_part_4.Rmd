@@ -9,16 +9,16 @@ output:
 
 ## Introduction
 ### Objective  
-One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free resources available and they are often incomplete or inaccurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
 
 The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
 
-In this forth part, we merge the two data obtained in [part 2](http://chinapleth.io/2015/12/30/getting-and-cleaning-data-example-of-chinese-airports-part-25/) and [part 3](http://chinapleth.io/2015/12/31/getting-and-cleaning-data-example-of-chinese-airports-part-35/) sets by IATA.FAA code and will clean / fix missing data. We will create the separate dataset with the complement which will be fixed in next part.
+In this forth part, we merge the two data obtained in [part 2](http://chinapleth.io/2015/12/30/getting-and-cleaning-data-example-of-chinese-airports-part-25/) and [part 3](http://chinapleth.io/2015/12/31/getting-and-cleaning-data-example-of-chinese-airports-part-35/) sets by IATA.FAA code and will clean / fix missing data. We will create the separate data set with the complement which will be fixed in next part.
 
 In order to compare and fix missing or wrong data we are going to use different tools :  
 
 - `stringdist` from the package of the same name to check the distance between two chains of characters
-- the google map API which give back elevation for a set of longitute / latitude
+- the Google map API which give back elevation for a set of longitude / latitude
 - `gmaps` to return maps of an area where airports are supposed to be located
 
 
@@ -69,13 +69,13 @@ OFout <- rbind(OFout, OFwoIATA)
 sum(OAout[!is.na(OAout$ICAO),] %in% OFout[!is.na(OFout$ICAO),])
 ```
 
-We have now three datasets to work on :  
+We have now three data sets to work on :  
 
-- `IATA` which contains common airports by IATA code between openflight and ourairport data set. We need to define a strategy to select or merge their paramaters if data is different (which elevation choose when different, which name, etc...)
+- `IATA` which contains common airports by IATA code between openflight and ourairport data set. We need to define a strategy to select or merge their parameters if data is different (which elevation choose when different, which name, etc...)
 - `OFout` airport from Openflight which have no match by IATA nor ICAO in ourairpot data or no IATA/ICAO code.
 - `OAout` airport from ourairport which have no match by IATA nor ICAO in openflights data or no IATA/ICAO code
 
-For the two last dataset, we merge them and we will have to find a way to collect missing data and add these to IATA data set in the later part of this report.
+For the two last data set, we merge them and we will have to find a way to collect missing data and add these to IATA data set in the later part of this report.
 
 ```{r actionPlan3}
 # add missing categories to OFout
@@ -109,7 +109,7 @@ IATA <- dplyr::select(IATA,
 ```
 
 ### Fixing ICAO codes  
-Let's clean the ICAO codes, we will use the one from OurAiports. All missing values of OpenFlight are included in Ouraiports. Missing values of OurAirports are not found in Openflight dataset (see previous missingness map)
+Let's clean the ICAO codes, we will use the one from OurAiports. All missing values of OpenFlight are included in Ouraiports. Missing values of OurAirports are not found in Openflight data set (see previous missingness map)
 
 
 ```{r full1}
@@ -122,7 +122,7 @@ missmap(IATA)
 
 ### Fixing city name  
 No missing data in city.y, we replace missing city.x by associated city.y.
-There seems to be small typos in both dataset (always for chinese cities), we compare city names by calculating the distance between the character vectors.
+There seems to be small typos in both data set (always for Chinese cities), we compare city names by calculating the distance between the character vectors.
 We keep city.x which seems better.
 
 ```{r full4, message=TRUE}
@@ -140,7 +140,7 @@ missmap(IATA)
 
 
 ### Fixing airport names  
-No missing data in name.y or name.x, we need to compare both by string distance. name.x is more detailled and better written. Except for Taoxian Airport.
+No missing data in name.y or name.x, we need to compare both by string distance. name.x is more detailed and better written. Except for Taoxian Airport.
 
 ```{r full5}
 dist <- stringdist(IATA$name.x, IATA$name.y)
@@ -154,7 +154,7 @@ missmap(IATA)
 
 
 ### Fixing longitude.deg, latitude.deg  
-Values for longitude and latitude are different in the two datasets, we study in details the distance over 0.01 degree which represent roughly 500 meters. 
+Values for longitude and latitude are different in the two data sets, we study in details the distance over 0.01 degree which represent roughly 500 meters. 
 
 ```{r mapAO2, warning=FALSE}
 dist1 <- abs(IATA$longitude.deg.x - IATA$longitude.deg.y)
@@ -171,13 +171,13 @@ g <- ggplot() + theme_bw()
 ## airports with elevation
 g <- g + geom_point(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.x, y = latitude.deg.x), col = "firebrick", pch = 3)
 ## airport with 0 m  as elevation in red
-g <- g + geom_point(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.y, y = latitude.deg.y), col = "blue", spch = 1)
+g <- g + geom_point(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.y, y = latitude.deg.y), col = "blue", pch = 1)
 g <- g + geom_text(data = IATA[dist1 > 0.01 & dist2 > 0.01,], aes(x = longitude.deg.x, y = latitude.deg.x, label=IATA.FAA), size = 3, vjust = -1)
 print(g)
 ```
 
-The map above shows there are significant error between the two datasets, now let's sample few cases to check which dataset is probably the most accurate.
-We use for that the `ggmap` package to display side by side satellite images around the latitude and longitude coordinnates of the airport in both data set for the airport with largest distance. We reuse the function `multiplot()` available [here](http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/) to display images side by side (OF vs. OA)
+The map above shows there are significant error between the two data sets, now let's sample few cases to check which data set is probably the most accurate.
+We use for that the `ggmap` package to display side by side satellite images around the latitude and longitude coordinates of the airport in both data set for the airport with largest distance. We reuse the function `multiplot()` available [here](http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_%28ggplot2%29/) to display images side by side (OF vs. OA)
 
 ```{r multiplot, echo=FALSE}
 # Multiple plot function
@@ -253,7 +253,7 @@ for(i in 1:nrow(toCheck)){
 
 ```
 
-As a conclusion for this part, OA seems to be more accurate than OF regarding the airport longitude and latitude. We decide to keep OA data and drop OF data. **note** we should confirm that googlemap satellite is accurate in China and there is not shift phenomenum. 
+As a conclusion for this part, OA seems to be more accurate than OF regarding the airport longitude and latitude. We decide to keep OA data and drop OF data. **note** we should confirm that googlemap satellite is accurate in China and there is not shift phenomenon. 
 
 ```{r fixLocation, message=FALSE}
 IATA$latitude.deg <- IATA$latitude.deg.x
@@ -261,11 +261,11 @@ IATA$longitude.deg <- IATA$longitude.deg.x
 IATA <- dplyr::select(IATA, -latitude.deg.x, -latitude.deg.y, -longitude.deg.x, -longitude.deg.y)
 ```
 
-Nevertheless as shown in the case of ZLXH airport the data of OA seems innacurate. Further check is probably needed. **note 2** Comparison is done here manually, we will see in another post how to make this detection using machine learning algorithms.
+Nevertheless as shown in the case of ZLXH airport the data of OA seems inaccurate. Further check is probably needed. **note 2** Comparison is done here manually, we will see in another post how to make this detection using machine learning algorithms.
 
 
 ### Fixing categories
-They are same in both datasets except the following. We decide to keep OF categories.
+They are same in both data sets except the following. We decide to keep OF categories.
 
 ```{r fixCat}
 ## mismatch in category
@@ -279,7 +279,7 @@ missmap(IATA)
 
 
 ### Fixing elevation.m data  
-As we have decided to drop OF latitude and longitude we should also drop the elevation from OF dataset.
+As we have decided to drop OF latitude and longitude we should also drop the elevation from OF data set.
 
 ```{r full3}
 IATA$elevation.m <- IATA$elevation.m.x
@@ -309,7 +309,7 @@ getElevation <- function(long,lat) {
 IATA$elevationCheck <- apply(IATA, 1, function(x) getElevation(x[10],x[9]))
 ```
 
-We are now going to check the gap between google data and OA dataset.
+We are now going to check the gap between Google data and OA data set.
 
 ```{r replaceElevation}
 ## replace missing elevation by google values
@@ -323,13 +323,13 @@ IATA <- dplyr::select(IATA, -elevationCheck)
 missmap(IATA)
 ```
 
-We have `r sum(dist > 30)` aiports whith more than 30 meters of elevation error. After checking, we find out that google data is more accurate and use it for these 3 airports.
+We have `r sum(dist > 30)` airports with more than 30 meters of elevation error. After checking, we find out that Google data is more accurate and use it for these 3 airports.
 
 We use information from [http://www.geoplaner.com/#Coordinate-Converter] for setting
 
 
 ### Fixing missing ICAO & wikipedia airport links
-We are still missing two ICAO codes and a bunch of wikipedia airports links. Let's solve this matter by scrapping wikipedia to get the missing values. We will use the great rvest package [see example on r-blogger](http://www.r-bloggers.com/using-rvest-to-scrape-an-html-table/).
+We are still missing two ICAO codes and a bunch of Wikipedia airports links. Let's solve this matter by scrapping Wikipedia to get the missing values. We will use the great rvest package [see example on r-blogger](http://www.r-bloggers.com/using-rvest-to-scrape-an-html-table/).
 
 ```{r checkWikipedia, cache=TRUE}
 library("rvest")
