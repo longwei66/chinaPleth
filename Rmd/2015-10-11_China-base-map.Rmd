@@ -5,17 +5,23 @@ date: "October 11, 2015"
 output: html_document
 ---
 
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
 ## Objective
 In this article we are going to plot a simple map of China with different levels of subdivisions using both base and ggplot2 systems.
 
 In a nutshell :
 
 - get shape files with different subdivision levels
-- clean data, get proper provinces chinese names
+- clean data, get proper provinces Chinese names
 - plot China base map with subdivisions both is base and ggplot systems
 - add subdivision names on the map
 
-There are three excellents reference article (with maps of Nepal and Toronto) for such process : 
+There are three excellent reference article (with maps of Nepal and Toronto) for such process : 
 
 - http://bl.ocks.org/prabhasp/raw/5030005/
 - http://unconj.ca/blog/choropleth-maps-with-r-and-ggplot2.html
@@ -55,7 +61,7 @@ For instance, if we take China, the first level of subdivisions contains 31 elem
 In R, we need to create an object of class `SpatialPolygonsDataFrame`, this is a special type of data frame composed of two elements :
 
 - data : basically a data.frame with data associated to available subdivisions (id, name in different languages, type of subdivisions, etc...)
-- polygons : a list with as many elements as we have subdivisions (eg. 31 in the case of Chine level 1) with all geographical coordinnates for the subdivisions
+- polygons : a list with as many elements as we have subdivisions (eg. 31 in the case of Chine level 1) with all geographical coordinates for the subdivisions
 - more information available here : http://www.inside-r.org/packages/cran/sp/docs/getSpPPolygonsIDSlots
 
 ## Getting data
@@ -81,13 +87,13 @@ class(ChinaPolygonsLevel1 )
 
 ## Exploring the data 
 ### Subdivision data
-As mentionned previously, this object has two main parts, the data of subdivisions and the polygons.
+As mentioned previously, this object has two main parts, the data of subdivisions and the polygons.
 
 ```{r strPoly, message=FALSE}
 str(ChinaPolygonsLevel1@data)
 ```
 
-Basically there are `r nrow(ChinaPolygonsLevel1@data)` subdivisions. We can get their names in local and english languages.
+Basically there are `r nrow(ChinaPolygonsLevel1@data)` subdivisions. We can get their names in local and English languages.
 
 ```{r headNames, message=FALSE}
 head(unique(ChinaPolygonsLevel1@data$NAME_1))
@@ -96,7 +102,7 @@ head(unique(ChinaPolygonsLevel1@data$NL_NAME_1))
 ```
 
 ### Polygons
-Regarding the plygons, we can plot it quickly :
+Regarding the polygons, we can plot it quickly :
 
 ```{r basicChinaMap, fig.width=9, fig.height=6}
 plot(ChinaPolygonsLevel1,  main = "China level 1")
@@ -104,7 +110,7 @@ plot(ChinaPolygonsLevel1,  main = "China level 1")
 
 ## Cleaning data
 ### Clean provincial names
-We would like a clean dataset with proper names in english and Chinese (simplified characters only), thus we need to make few substitutions.
+We would like a clean dataset with proper names in English and Chinese (simplified characters only), thus we need to make few substitutions.
 
 There are some province which names is recorded with both simplified and complex characters schemes separated by a `|`
 ```{r provinceNames, message=FALSE}
@@ -132,12 +138,12 @@ ChinaPolygonsLevel1@data$NAME_1 <- as.factor(ChinaPolygonsLevel1@data$NAME_1)
 
 Here is the final list in simplified Chinese : `r paste(ChinaPolygonsLevel1@data$NL_NAME_1, sep =", ")`
 
-Here is the final list in english : `r paste(ChinaPolygonsLevel1@data$NAME_1, sep =", ")`
+Here is the final list in English : `r paste(ChinaPolygonsLevel1@data$NAME_1, sep =", ")`
 
 ### Prepare ggplot maps : Converting spacial polygon shapes to data frame
 
 Later we will use ggplot to plot China maps, we need to convert the polygons object into data frame with `fortify` function. 
-Region will be identified by names in simplified chinese
+Region will be identified by names in simplified Chinese
 
 ```{r convertPoly2DataF, cache=TRUE}
 # Convert the spacial polygon shapes to data frame

@@ -5,18 +5,23 @@ date: "October 8, 2015"
 output: html_document
 ---
 
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
 ## Objective
 This is a short article to briefly describe the set of tools, software which are used by chinaPleth for data processing, statistical computing and publishing on this blog.
 
 In a nutshell :
 
 - linux as an operating system
-- R for satistical computing, data processing and visualisation
-- Rstudio as integrated development environement
+- R for statistical computing, data processing and visualization
+- Rstudio as integrated development environment
 - Git as version control
 - Github for sharing the code
 - Rmarkdown for writing articles (weaving analysis text, code and output)
-- Wordpress as blog enging
+- Wordpress as blog engine
 - Rwordpress to publish directly from markdown files to blog posts
 
 
@@ -33,7 +38,7 @@ system("cat /etc/lsb-release", intern = TRUE)
 ```
 
 ## R - Cran
-Chinapleth uses R for statistical computing and visualisations. The standard package provided with Ubunt is fine as well as all `r-cran*` packages.
+Chinapleth uses R for statistical computing and visualizations. The standard package provided with Ubuntu is fine as well as all `r-cran*` packages.
 
 From https://cran.r-project.org/
 
@@ -55,9 +60,9 @@ From https://www.rstudio.com/ :
 system("apt list --installed | grep rstudio", intern = TRUE)
 ```
 
-## Version control : Git & Gihub
+## Version control : Git & Github
 ### Git
-For version control of scripts and files, Chinapleth uses Git. This amazingly powerfull even as a single user or with a small team.
+For version control of scripts and files, Chinapleth uses Git. This amazingly powerful even as a single user or with a small team.
 
 From https://git-scm.com/ :
 
@@ -67,7 +72,7 @@ From https://git-scm.com/ :
 system("apt list --installed | grep git/", intern = TRUE)
 ```
 
-### Gihub
+### Github
 
 From https://en.wikipedia.org/wiki/GitHub
 
@@ -77,7 +82,7 @@ All the script distributed by Chinapleth are open source (see Licence details) u
 Feel free to clone and use chinaPleth code :
 https://github.com/longwei66/chinaPleth
 
-There are some small issues to push smoothly code to github with latest versions of Rstudio, the best is to follow this guide to switch to ssh authentification. 
+There are some small issues to push smoothly code to github with latest versions of Rstudio, the best is to follow this guide to switch to ssh authentication. 
 http://www.r-bloggers.com/rstudio-pushing-to-github-with-ssh-authentication/
 
 
@@ -98,13 +103,13 @@ From https://cran.r-project.org/web/views/ReproducibleResearch.html
 
 > R largely facilitates reproducible research using literate programming; a document that is a combination of content and data analysis code. The Sweave function (in the base R utils package) and the knitr package can be used to blend the subject matter and R code so that a single document defines the content and the algorithms. 
 
-With such approach it is very easy to write reports, presentations which contains both text, code and resut of this code once processed in one document. The advantages are : 
+With such approach it is very easy to write reports, presentations which contains both text, code and result of this code once processed in one document. The advantages are : 
 
 1. provide to the reader all the element to reproduce the output
 2. quickly update reports when data source are evolving, easy to build templates, etc...
 
 ### From R to Wordpress
-As standard behaviour, knit package output and html page which can be viewed in a browser, to complete our publication process we use the Rwordpress package to post directly to our wordpress.
+As standard behavior, knit package output and html page which can be viewed in a browser, to complete our publication process we use the Rwordpress package to post directly to our wordpress.
 
 Once configured as explained in (see http://yihui.name/knitr/demo/wordpress/), the publishing command is as simple as :
 ```{r, eval=FALSE}

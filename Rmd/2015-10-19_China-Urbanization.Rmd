@@ -5,6 +5,12 @@ date: "October 19, 2015"
 output: html_document
 ---
 
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
 ## Objective
 In this article we are going to plot a map of China urbanization rate per provinces together with Chinese cities with at least 2 millions population.
 
@@ -12,8 +18,8 @@ In a nutshell :
 
 1 - Get rural and urban population data from official China statistic bureau, clean the data, same two steps for Chinese largest cities
 2 - Prepare a map of China with provinces
-3 - Get data for the main chinese cities, population, names and longitude, latitude
-4 - Plot China base map with provincial subdivisions, choropleth of urbanisation rate, add   main cities
+3 - Get data for the main Chinese cities, population, names and longitude, latitude
+4 - Plot China base map with provincial subdivisions, choropleth of urbanization rate, add   main cities
 
 Let's start by loading the necessary libraries :
 
@@ -90,7 +96,7 @@ print(g)
 
 ### Prepare a map of China with provinces, municipalities and autonomous regions
 
-We need now to load the polygon shape data frame for china level one subdivisions, merge it with urbanisation rate data.
+We need now to load the polygon shape data frame for china level one subdivisions, merge it with urbanization rate data.
 
 ```{r readShapeFile, message=FALSE, cache=TRUE, fig.width=12}
 ChinaPolygonsLevel1 <- readShapeSpatial("../../data/chinaPlethData/ext/GAA/CHN_adm1.shp")
@@ -129,7 +135,7 @@ print(g)
 
 ### Main Chinese Cities data
 
-We want to add on the map the main Chinese cities with their population. There are multiple sources for such data but most of them requires intensive data processing. This will be the topic of another article. For this post, let's use available data in R and the world.cities dataset of the packages `maps`.
+We want to add on the map the main Chinese cities with their population. There are multiple sources for such data but most of them requires intensive data processing. This will be the topic of another article. For this post, let's use available data in R and the world.cities data set of the packages `maps`.
 
 ```{r worldCitiesChina}
 library(maps)
@@ -150,10 +156,10 @@ qplot(x = long, y = lat, data = mainCitiesOfChina[mainCitiesOfChina$pop > 2,], s
 
 
 ## Plot China map
-We will proceed in two steps, we will make first a choropleth by province of urbanisation rate and then we will add cities.
+We will proceed in two steps, we will make first a choropleth by province of urbanization rate and then we will add cities.
 
 ### Provinces, urbanisation rate choropleth
-We should map the urbanisation rate from the `provincePopulation` dataframe with province of the maps defined by `ChinaLevel1`. Let's first check that all provinces are covered and names are matching.
+We should map the urbanization rate from the `provincePopulation` dataframe with province of the maps defined by `ChinaLevel1`. Let's first check that all provinces are covered and names are matching.
 
 ```{r ChinaUrbanizationChoropleth}
 a <- unique(provincePopulation[provincePopulation$variable == "Urbanisation.rate",]$Region)
