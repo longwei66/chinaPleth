@@ -8,9 +8,16 @@ output:
 ---
 
 
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
+
 ## Introduction
 ### Objective  
-One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free resources available and they are often incomplete or inaccurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
 
 The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
 
@@ -77,7 +84,7 @@ From [wikipedia](https://en.wikipedia.org/wiki/International_Air_Transport_Assoc
 
 > An IATA airport code, also known an IATA location identifier, IATA station code or simply a location identifier,[1] is a three-letter code designating many airports around the world, defined by the International Air Transport Association (IATA).
 
-Let's check the airport which are not matching a 3 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitube by NAs.
+Let's check the airport which are not matching a 3 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitute by NAs.
 
 ```{r OpenflightsIATA}
 unique(airportChinaOpenflights[!grepl( pattern = "[A-Z][A-Z][A-Z]",x = airportChinaOpenflights$IATA.FAA),]$IATA.FAA)
@@ -99,7 +106,7 @@ From [wikipedia](https://en.wikipedia.org/wiki/International_Civil_Aviation_Orga
 
 > The ICAO airport code or location indicator is a four-character alphanumeric code designating aerodromes around the world. These codes are defined by the International Civil Aviation Organization,[...]. They differ from IATA codes, which are generally used for airline timetables, reservations, and baggage tags. For example, the IATA code for London's Heathrow Airport is LHR and its ICAO code is EGLL. ICAO codes are commonly seen by passengers and the general public on flight-tracking services such as FlightAware. In general IATA codes are usually derived from the name of the airport or the city it serves, while ICAO codes are distributed by region and country.
 
-Let's check the airport which are not matching a 4 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitube by NAs.
+Let's check the airport which are not matching a 4 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitute by NAs.
 
 ```{r OpenflightsICAO}
 unique(airportChinaOpenflights[!grepl( pattern = "[A-Z][A-Z][A-Z][A-Z]",x = airportChinaOpenflights$ICAO),]$ICAO)
@@ -131,7 +138,7 @@ hist(airportChinaOpenflights$elevation.m, breaks = 20)
 hist(airportChinaOpenflights[airportChinaOpenflights$elevation.m < 30,]$elevation.m, breaks = 100, xlab = "Airports with elevation < 30m")
 ```
 
-With this tiled chart we can visualise quickly that distribution of latitude and longitude looks reasonnable with no extreme values included. However, regarding elevation, we have a lot of airport in low elevation and in the bottom right chart we see that most of them (>60) are at 0 meters or very close to zero. Actually we have  `r nrow(airportChinaOpenflights[airportChinaOpenflights$elevation.m == 0,])` airpots with an elevation of 0 meters.
+With this tiled chart we can visualize quickly that distribution of latitude and longitude looks reasonable with no extreme values included. However, regarding elevation, we have a lot of airport in low elevation and in the bottom right chart we see that most of them (>60) are at 0 meters or very close to zero. Actually we have  `r nrow(airportChinaOpenflights[airportChinaOpenflights$elevation.m == 0,])` airports with an elevation of 0 meters.
 
 ```{r mapOpenflight}
 g <- ggplot() + theme_bw()

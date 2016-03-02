@@ -7,9 +7,17 @@ output:
     toc: yes
 ---
 
+
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
+
 ## Introduction
 ### Objective  
-One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free resources available and they are often incomplete or inaccurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
 
 The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
 
@@ -39,7 +47,7 @@ load(file = "./chinese-airports-part-2.Rda")
 
 ### Overview
 
-This dataset looks more complete than the Openflight data, there are more field and more lignes (`r nrow(airportChinaOurairports)` airports). Let's follow similar process for exploration / cleaning.There are some field of little interest for us which are removed.
+This dataset looks more complete than the Openflight data, there are more field and more lines (`r nrow(airportChinaOurairports)` airports). Let's follow similar process for exploration / cleaning.There are some field of little interest for us which are removed.
 
 ```{r clearFieldOA}
 str(airportChinaOurairports)
@@ -84,7 +92,7 @@ hist(airportChinaOurairports$elevation.m, breaks = 20)
 hist(airportChinaOurairports[airportChinaOurairports$elevation.m < 50,]$elevation.m, breaks = 100, xlab = "Airports with elevation < 50m")
 ```
 
-With this tiled chart we can visualise quickly that distribution of latitude and longitude which looks reasonnable with no extreme values. Regarding elevation, we have a lot of airport in low elevation and in the bottom right chart we see that almost none of them are at 0 meters.
+With this tiled chart we can visualize quickly that distribution of latitude and longitude which looks reasonable with no extreme values. Regarding elevation, we have a lot of airport in low elevation and in the bottom right chart we see that almost none of them are at 0 meters.
 
 
 ```{r mapAO, warning=FALSE}
@@ -114,7 +122,7 @@ No empty char or NA for scheduled.service field.
 
 
 ### Variable `IATA.FAA`
-Let's check the airport which are not matching a 3 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitube by NAs. Rename this field with same title as in Openflight dataset.
+Let's check the airport which are not matching a 3 letters pattern, what's their code ? As seen bellow, in fact the data is missing, let's substitute by NAs. Rename this field with same title as in Openflight dataset.
 
 ```{r checkOA3}
 unique(airportChinaOurairports[!grepl( pattern = "[A-Z][A-Z][A-Z]",x = airportChinaOurairports$IATA.FAA),]$IATA.FAA)
@@ -173,7 +181,7 @@ sum(airportChinaOurairports$region.name == "(unassigned)")
 airportChinaOurairports[airportChinaOurairports$region.name == "(unassigned)",]$region.name <- NA
 unique(airportChinaOurairports$region.name)
 ```
-We replace the unasigned region name by NA.
+We replace the unassigned region name by NA.
 
 
 ### Removing military airports

@@ -7,21 +7,28 @@ output:
     toc: yes
 ---
 
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
+
 ## Introduction
 ### Objective  
-One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free resources available and they are often incomplete or inaccurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
 
 The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
 
 In this first part, we will get airport data from two different sources, download it with R, and load the two data sets in two data frames.
 
 **What do we need**  
-We need an accurate list of airports in China with their geolocalisation (longitude and latitude, elevation) as well as information about their code (IATA or ICAO) and plain english/chinese city name as well as airport name. We would like to focus on civil aiports.
+We need an accurate list of airports in China with their localisation (longitude and latitude, elevation) as well as information about their code (IATA or ICAO) and plain English/Chinese city name as well as airport name. We would like to focus on civil airports.
 
-We will see that this process can be time consuming and complicated however, using Rmarkdown, we can make the data cleaning process documented and fully reproductible. We will discuss options to get data, how to use R basic functions and ggplot2 to evaluate the quality of a data set, compare different sources, and finally get the best of two different sources. Finally we will fix missing data by external ressources such as googlemaps API and wikipedia. 
+We will see that this process can be time consuming and complicated however, using Rmarkdown, we can make the data cleaning process documented and fully reproducible. We will discuss options to get data, how to use R basic functions and ggplot2 to evaluate the quality of a data set, compare different sources, and finally get the best of two different sources. Finally we will fix missing data by external resources such as googlemaps API and wikipedia. 
 
 ### Devil is in the details and the too much polished visualisation  
-What is at stake here is to get the best data set with the minimum amount of effort. Exploratory analysis to visualise data, missing data is very usefull to support this process. However, we should avoided at this stage of the process to spend too much time in the details and nice / pretty visualisation. We just need to get things done.
+What is at stake here is to get the best data set with the minimum amount of effort. Exploratory analysis to visualize data, missing data is very useful to support this process. However, we should avoided at this stage of the process to spend too much time in the details and nice / pretty visualization. We just need to get things done.
 
 ### Dependencies, internet set-up, R code generation
 We will need few standard packages as loaded bellow.
@@ -54,12 +61,12 @@ library(knitr); purl("2015-11-04_Chinese-Airports.Rmd", documentation = 2)
 
 ## Getting Chinese airports data
 ### Finding Chinese airports data
-There are mainy apps and websites providing flights information, they rely on data which rarely open and distributed. After some basic [duckducking](http://duckduckgo.com), we identify two relevant open sources for airports :
+There are many apps and websites providing flights information, they rely on data which rarely open and distributed. After some basic [duckducking](http://duckduckgo.com), we identify two relevant open sources for airports :
 
-- Openflight (OF) : http://www.openflights.org/data.html 
+- Openflights (OF) : http://www.openflights.org/data.html 
 - Ourairports (OA) : http://ourairports.com/data/
 
-### Openflight Data (OF)
+### Openflights Data (OF)
 Data source:  [airports.dat](https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat)
 
 ```{r downloadOFdata, message=FALSE, cache=FALSE}
@@ -113,7 +120,7 @@ airportChinaOpenflights <- dplyr::select(airportChinaOpenflights,
                                          -DST, -Tz, -elevation.ft,
                                          -country.name)
 ```
-There are `r nrow(airportChinaOpenflights)` airport in China in openflight (OF) dataset.
+There are `r nrow(airportChinaOpenflights)` airport in China in openflights (OF) dataset.
 
 ### Our airports (OA)
 
@@ -121,7 +128,7 @@ We need to download 3 files (http://ourairports.com/data/):
 
 - `airports.csv` which contains airports data
 - `countries.csv` which contains countries details (needed to parse airports files)
-- `regions.csv` which contains region data (needed to parse aiports files)
+- `regions.csv` which contains region data (needed to parse airports files)
 
 
 ```{r downloadOAdata, message=FALSE, cache=FALSE}
@@ -246,7 +253,7 @@ save( list = c("airportChinaOpenflights",
       file = "chinese-airports-part-1.Rda")
 ```
 
-In the next post, we will do some exploratory data analysis and data cleaning of the Openflight data set.
+In the next post, we will do some exploratory data analysis and data cleaning of the Openflights data set.
 
 
 
