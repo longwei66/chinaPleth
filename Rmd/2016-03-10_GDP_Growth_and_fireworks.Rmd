@@ -1,0 +1,110 @@
+---
+title: "GDP Growth and Chinese new year fireworks"
+author: "chinaPleth"
+date: "March 10th, 2016"
+output: 
+  html_fragment:
+    self_contained: false
+    toc: no
+---
+
+
+
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+#opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
+
+## Introduction
+### Objective
+For the first time ever, the city of Shanghai (and probably of Nanjing) entered the year of the monkey with a very quiet night. For safety and environment protection reason, the usual fireworks and firecrackers hysteria was forbidden downtown by the local governement.
+
+This is a very big cultural change which was implemented very strickly. Fireworks and other noisy traditionnal firecrackers and used for important events in China, such as weddings, opening of shops and companies and lunar new year celebrations. They are used to chase away evils and brind good luck and prosperity for the future.
+
+Our objective is to find out if GPD growth is improved by the amount of fireworks used during chinese new year or if at the contrary, less improvement in economy lead to less frantic nights and less fireworks
+
+In this post we will try with a bit of data hack and visualisation :
+
+- to confirm and illustrate the impact of fireworks on air quality during the new year's eve
+- to quantify the amount of fireworks based on air quality change during that night
+- to confirm links between GDP growth (the main economical indicator of China economy) of the country and the different cities with amount of fireworks used during new year's eve
+
+### Overall Process :  
+1. Get and clean PM2.5 from main cities (see previous post [here](http://url))
+2. Get and clean dates of past chinese new year eve
+3. Get and clean GDP growth data for China and its main cities
+3. Prepare a clean dataset with days before and after new year
+4. Exploratory analysis
+5. Evaluate impact of fireworks on PM2.5
+6. Estimate the amount of fireworks used in each cities
+7. build a model PM2.5 > amount of fireworks > GDP growth
+8. analysis and conclusions
+
+In this first part we will cover steps 1 to 4.
+
+### Required libraries
+We need several R packages for this study.
+
+```{r loadLibraries, message=FALSE, warning=FALSE}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+# check if we are in the right working directory
+if(gsub("(.*)\\/", "", getwd()) != "Rmd") {setwd("./Rmd")}
+```
+
+
+## Getting and cleaning data : PM2.5 readings, Chinese new year dates & GPD growth 
+
+### Chinese new year dates
+We will scrape [wikipedia](https://en.wikipedia.org/wiki/Chinese_New_Year) to extract and clean dates of Chinese New Year. We will use the great rvest package [see example on r-blogger](http://www.r-bloggers.com/using-rvest-to-scrape-an-html-table/).
+
+```{r scrapeWikipediacny, echo=TRUE, message=FALSE, warning=FALSE}
+library("rvest")
+url <- "https://en.wikipedia.org/wiki/Chinese_New_Year"
+# Xpath to get the whole Table
+# //*[@id="mw-content-text"]/table[1]
+cny <- url %>%
+  read_html() %>%
+  html_nodes(xpath='//*[@id="mw-content-text"]/table[4]') %>%
+  html_table(fill = TRUE)
+cny <- cny[[1]]
+## keep only what we want
+cny <- cny[-1,1:4]
+names(cny) <- c("year", "date","animal","weekday" )
+cny$date <- paste(cny$date, cny$year)
+cny$date <- as.character(strptime(cny$date, "%d %b %Y"))
+
+## extract the New Year eve and nights
+cny$eve <- as.character(as.Date(cny$date)-1)
+```
+
+
+### GDP Growth
+The best source we found is the official China statistic bureau. You can follow the following link to download the data :
+http://data.stats.gov.cn/english/easyquery.htm?cn=E0103&f=766
+
+We need the stats for these cities: `r unique(aqi$city)`
+
+
+### PM2.5
+We will simply reuse directly the dataset generated in our previous post
+
+```{r loadPM2.5data}
+load(file = "aqi-1.Rda")
+names(aqi)
+```
+
+The codebook for this dataset is available in our [github](https://github.com/longwei)
+
+```{r subsetPM2.5}
+aqicny <- aqi[aqi$date %in% cny$date | aqi$date %in% cny$eve,]
+aqicny$time <- aqicny$hour
+aqicny[aqicny$date %in% cny$date,]$time <- aqicny[aqicny$date %in% cny$date,]$time + 24
+aqicny$year <- as.factor(aqicny$year)
+qplot(data = aqicny, x = time, y = pm2.5, facets = city ~ year, col = year, main = "fireworks")
+```
+
+
+

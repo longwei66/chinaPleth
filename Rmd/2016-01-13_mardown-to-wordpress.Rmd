@@ -1,0 +1,190 @@
+---
+title: Write posts with Rstudio,  Rmarkdown format and publish directly to wordpress with knitr & Rwordpress
+author: "chinaPleth"
+date: "January 14, 2016"
+output: html_document
+---
+
+
+## Introduction
+### Objective
+chinaPleth is designed to be fully open, free and reproducible. This post will explain the tools and process we use to generate ou posts, weaving text and code together, publishing automatically to Wordpress using :  
+
+- Rstudio for code edition and execution in R
+- Rmarkdown to write posts and articles
+- knitr for processing ("weaving" text and code chunks together) Rmarkdown post
+- Rwordpress to publish directly Rmarkdown documents to a wordpress blog
+
+But what does it mean exactly to be reproducible ? The most simple definition in our context is probably the one from the excellent book by Jeff Leek, **The Elements of Data Analytic Style, A guide for people who want to analyze data** (available [here](http://leanpub.com/datastyle))
+
+> Reproducibility involves being able to recalculate the exact numbers in a data analysis using the code and raw data provided by the analyst.
+
+### Tools and R packages  
+The necessary software and packages needed are listed bellow. First we use (Rstudio)[http://www.rstudio.com] in its version 0.99.846 and R in its version `r R.version.string`. Then we need to load the following packages.
+
+```{r loadLibraries}
+library(knitr) ## we use knitr 1.12
+library(RWordPress) ## we use RwordPress 0.2-3
+# check if we are in the right working directory
+if(gsub("(.*)\\/", "", getwd()) != "Rmd") {setwd("./Rmd")}
+```
+
+
+
+## Writing reports with R
+### Weaving text and code
+The best way to understand how to produce fully reproducible reports and posts with R, Rmarkdown and knitr is to read the few examples given by yihui the developer of knitr [here](http://yihui.name/knitr/demo/minimal/)
+
+> Regardless of which format you use, the basic idea is the same: knitr extracts R code in the input document, evaluates it and writes the results to the output document. There are two types of R code: chunks (code as separate paragraphs) and inline R code
+
+The process is the following :
+
+- write the document in Rmarkdown which is an evolution of markdown to embed R code (and executed code output to make them dynamic). You can read more about Rmarkdown [here](http://rmarkdown.rstudio.com/)
+- "compile" or "weave" the document with knitr generating an html (or PDF or word) document which contains the initial text and the inline code and output of the R code (figures, table, etc...)
+
+### Rwordpress  
+`Rwordpress` is an additional package which generate a document in html for and publish it directly to your wordpress blog together with categories, tags and status (draft or published). It is also possible to update and existing post knowing it's ID.
+
+The documentation regarding Rwordpress is quite scarce on the web and doesn't look updated, the best is to read the presentation from it's developper [here](http://yihui.name/knitr/demo/wordpress/)
+
+> The RWordPress package allows one to publish blog posts from R to WordPress (see the newPost() function in the package). A blog post is essentially an HTML fragment, and knitr can create such a fragment from R Markdown with the markdown package. Below is how to do this with the function knit2wp() in knitr:
+
+
+## Our configuration
+### Writing post  
+We use the basic function of Rstudio, create one new *.Rmd file for each post with following header template. All posts are stored in a subfolder called `Rmd`, which is version controlled using git. You can find all source file in our github repository : https://github.com/longwei66/chinaPleth
+
+To get an idea of the format, you can see bellow and example of header (the one of this post).
+
+```{r exampleHeaderRmd, eval=FALSE, echo=TRUE}
+---
+title: Write posts with Rstudio,  Rmarkdown format and publish directly to wordpress with knitr & Rwordpress
+author: "chinaPleth"
+date: "January 14, 2016"
+output: html_document
+---
+```
+
+### Configuring Rwordpress  
+We host our own wordpress blog so we won't cover the specific issues to publish to wordpress.com blogging platform, there are other ressources available for that purpose.
+
+We maintain another script file in R format which has the configuration of Rwordpress, login credential and log of posts publication. You must open and configure the xmlrpc feature in wordpress (see details [here](https://codex.wordpress.org/XML-RPC_Support))
+
+```{r post2wordpress, eval=FALSE}
+## Install RWordPress if missing
+if (!require('RWordPress'))
+        install.packages('RWordPress', repos = 'http://www.omegahat.org/R', type = 'source')
+
+## Load the libraries
+library(RWordPress)
+library(knitr)
+
+## Define the option to access chinaPleth.io
+options(WordpressLogin = c(longwei = 'writeyourpasswordinclearhere'),
+        WordpressURL = 'http://yourblog_xmlrpc_here')
+
+```
+
+### Publishing to your blog
+Once the previous steps are done, this is very easy to post to your blog.
+
+```{r post2WP, eval=FALSE}
+knit2wp(
+        input = 'your_post_file_in_Rmarkdown_format.Rmd', 
+        title = 'Your post title as it will be shown in wordpress', 
+        shortcode = FALSE, ## 
+        publish = FALSE
+        )
+```
+
+As stated by `publish=FALSE` the post will not be published and appear as **draft** in wordpress. You just need to change this to TRUE if you need to publish it directly.
+
+Once publish if the odd of the chinese internet are with you and you are not burried in a timeout you will get in return the ID of your post. If you forget to note this information, you can get it directly from your wordpress dashboard.
+
+### Updating an existing post
+If you need to update you post, you can just use the following code and change whatever is necessary, Rwordpress will overwrite previous post content and title.
+
+```{r updatePost, eval=FALSE}
+knit2wp(
+        input = 'your_post_file_in_Rmarkdown_format_v2.Rmd', 
+        title = 'Your updated post title as it will be shown in wordpress', 
+        shortcode = FALSE, ## 
+        publish = TRUE,
+        action = "editPost",
+        postid = 102
+        )
+```
+
+
+### Categories and tags
+If you want to add categories and tag to your post, this is very easy and can be done with few additionnal options to the `knit2wp()` script. When you update and existing post, the categories and tags information is replaced by the updated one.
+
+```{r updatePostwithCatTag, eval=FALSE}
+knit2wp(
+        input = 'your_post_file_in_Rmarkdown_format_v2.Rmd', 
+        title = 'Your updated post title as it will be shown in wordpress', 
+        shortcode = FALSE, ## 
+        publish = TRUE,
+        action = "editPost",
+        postid = 102,
+        categories=c('Reproducible research', 'r-cran'),
+        mt_keywords=c('wordpress', 'knitr', 'Rmarkdown', 'Rwordpress')
+        )
+```
+
+### Code highlight  
+The default formatting of code chunks in HTML by knitr is to wrap code chuncks in `<code class="r">` tags. This is not recognised nor formatted nicely per default by wordpress. There are several alternatives to get a clean code formatting with highlights. Either you follow recommentation of yihui to modify your blog headers and point to specific js scripts (see [here](http://yihui.name/knitr/demo/wordpress/) or you use one of the numerous plugins of wordpress.
+We chose the second option and installed :
+
+* Plugin Name: WP Code Highlight.js  
+* Plugin URI: https://github.com/owt5008137/WP-Code-Highlight.js  
+* Description: This is simple wordpress plugin for http://highlightjs.org library. Highlight.js highlights syntax in code examples on blogs, forums and in fact on any web pages. It's very easy to use because it works automatically: finds blocks of code, detects a language, highlights it.
+* Version: 0.5.7
+
+### About images
+The default configuration of knitr will produce a standalone html file, it means the plot and images generated by R will be embedded directly in the html source code. This is nice for standard Rmd reports as they can be shared by email directly as a standalone file.
+In a blog, this is not the best solution, if you want to build a gallery of your plots or if you want your reader to syndicate your blog as RSS.
+
+If you would like to upload the images to your wordpress blog instead, you have to add the following line of code in a code chunck at the begining of your report (after the headers)
+
+```{r configuration, echo=TRUE, message=FALSE, warning=FALSE, eval=FALSE}
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+`
+
+
+## Conclusion
+### This works !
+All of this is working pretty well (otherwise you won't read this post) 
+
+### Issues
+But we still have some specific issues with posting through a proxy/VPN.
+
+We have time to time to use a VPN from China to use google based packages such as `ggmaps` or Google Maps API through a proxy which is configured in our  ~/.Renviron file the following lines
+```
+http_proxy=http://IP:port
+https_proxy=https://IP:port
+```
+The latest version of Rwordpress do not work properlly and generates the following error.
+
+```
+Error in convertToR(xmlParse(node, asText = TRUE)) : 
+  error in evaluating the argument 'node' in selecting a method for function 'convertToR': Error: 1: Opening and ending tag mismatch: META line 2 and head
+2: Entity 'nbsp' not defined
+```
+
+
+We will need further investigation to fix that problem.
+
+### Further ideas / developement
+#### Tags and categories
+It's great to be able to add tags and categories to our posts, it would be even better to generate tags and category allocation automatically based on text mining of the post itself and past posts.
+As we are mainly a R blog, the idea would be to extract from Rmd file : 
+
+- the most used R functions for the code chuncks
+- the most relevant word for text parts
+
+It's a nice project to work on which should be the subject of later posts.  
+
+#### Title
+Another improvement should be the reuse automatically the Rmd post titel as defined in the Rmd header.

@@ -1,0 +1,83 @@
+---
+title: "About pollution,particle matters, PM2.5, Beijing vs. Shanghai and other cities - Part 2"
+author: "chinaPleth"
+date: "January 24th, 2016"
+output: 
+  html_document: 
+    toc: no
+---
+
+## Introduction
+### Objective
+Pollution in Beijing (and even Shanghai) at the end of 2015 reached terrible levels, there have been a lot of comments in the Chinese and international news about air pollution in China. AQI (air quality index) and PM2.5 (particle matters 2.5 micro gram per cubic meter) are the most popular data used to measure pollution in China which is mainly related to fine particles in the air. We will study in this series of posts the pollution in Beijing, compare it to previous years and to other cities such as Guangzhou and Shanghai, Paris.
+
+### Overall Process :  
+1. Get data : from US embassy PM2.5 hourly readings for China and Airparif for France
+2. Check and clean data
+3. Exploratory analysis
+4. Comparison of 2015 vs. 2014 and 2013
+5. Conclusions
+
+In this first part we will cover steps 3, exploration of the  PM2.5 data.
+
+### Required libraries
+We need several R packages for this study.
+
+```{r loadLibraries, message=FALSE, warning=FALSE}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+# check if we are in the right working directory
+if(gsub("(.*)\\/", "", getwd()) != "Rmd") {setwd("./Rmd")}
+```
+
+### Load part 1 results
+
+```{r loadPart1Data}
+load(file = "aqi-1.Rda")
+```
+
+
+## Explore AQI results
+### Overview per cities
+
+```{r overviewCity}
+## adding day in the year
+aqi$yday <- yday(aqi$date.time)
+aqi$city <- factor(aqi$city,
+         levels = c("Beijing", "Shenyang", "Chengdu","Shanghai", "Guangzhou", "Paris"))
+aqi$month <- as.factor(aqi$month)
+g <- ggplot(data = aqi, aes(x =yday, y = pm2.5, group = month))
+g <- g + geom_boxplot(outlier.shape=NA)
+g <- g + geom_point(position = position_jitter(width = 0.7), alpha = 0.01, aes(col=month))
+g <- g + facet_grid(facets =  year ~ city)
+g <- g + ylim(c(0,500))
+g
+```
+
+
+
+
+
+
+## Shanghai and Beijing
+```{r shanghaiBeijin}
+shanghai <- aqi[aqi$city == "Shanghai",]
+shanghai$key <- as.character(shanghai$date.time)
+beijing <- aqi[aqi$city == "Beijing",]
+beijing$key <- as.character(beijing$date.time)
+bs <- merge(x = shanghai, by.x = "key", y = beijing, by.y = "key")
+qplot(data = bs, x = pm2.5.x, y = pm2.5.y, col = as.factor(bs$month.x))
+```
+
+
+## Conclusion
+Let's save the data frame for next part
+```{r saveObjects, cache=FALSE}
+save( list = c("aqi"
+               ),
+      file = "aqi-2.Rda")
+```
+
+
+

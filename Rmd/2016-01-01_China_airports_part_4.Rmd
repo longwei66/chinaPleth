@@ -9,7 +9,7 @@ output:
 
 
 ```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
-opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+#opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
 ```
 
 
@@ -417,7 +417,7 @@ save( list = c("IATA",
                "airports_2_check"
                ),
       file = "chinese-airports-part-4.Rda")
-Sys.setenv(http_proxy="http://127.0.0.1:3213")
+#Sys.setenv(http_proxy="http://127.0.0.1:3213")
 ```
 
 
