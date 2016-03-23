@@ -1,0 +1,46 @@
+---
+title: "chinaPleth/aqi dataset Codebook"
+author: "chinaPleth"
+date: "March 22, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+load("../Rmd/aqi-1.Rda")
+```
+
+
+## Introduction and objectives
+
+This document details the content of the chinaPleth/aqi dataset.
+Read more on how to obtain this data [here](http://chinapleth.io/2016/01/09/about-polution-particle-matters-pm2-5-beijing-vs-shanghai-and-other-cities-part-1/)
+
+## About aqi dataset
+
+This dataset contains hourly pm2.5 (particle matters) for five Chinese cities (Beijing, Chengdu, Guangzhou, Shanghai, Shenyang) and Paris.
+
+## Structure of the dataset
+
+```{r}
+str(aqi)
+```
+
+## Comments on variables
+
+Variable | Values | Comments
+---------|--------|---------
+country | `r unique(aqi$country)` | in English
+city | `r unique(aqi$city)` | in English
+date.time | POSIXlt date and time | format yyy-mm-dd hh:mm:ss to match with hourly readings
+date | chr  | in yyyy-mm-dd format
+year | num | yyyy format
+month | num | 1 to 12
+day | num | 1 to 31
+hour | num | 0 to 23
+measurement.available | chr | `r unique(aqi$measurement.available)`
+pm2.5 | num | particle matters (pm2.5) readings in micro gram per cubic meter
+aqi | num | aqi readings according to american standard
+
+
+

@@ -31,7 +31,7 @@ In this post we will try with a bit of data hack and visualization :
 - to confirm links between GDP growth (the main economical indicator of China economy) of the country and the different cities with amount of fireworks used during new year's eve
 
 ### Overall Process :  
-1. Get and clean PM2.5 from main cities (see previous post [here](http://url))
+1. Get and clean PM2.5 from main cities (see previous post [here](http://chinapleth.io/2016/01/09/about-polution-particle-matters-pm2-5-beijing-vs-shanghai-and-other-cities-part-1/))
 2. Get and clean dates of past Chinese new year eve
 3. Get and clean GDP growth data for China and its main cities
 3. Prepare a clean data set with days before and after new year
@@ -93,7 +93,7 @@ names(aqi)
 aqi <- aqi[aqi$city != "Paris",]
 ```
 
-The codebook for this dataset is available in our [github](https://github.com/longwei). We need the stats for these cities: `r unique(aqi[aqi$city != "Paris",]$city)`.
+The codebook for this dataset is available in  [this post](http://chinapleth.io/2016/03/22/chinaplethaqi-dataset-codebook/). We need the stats for these cities: `r unique(aqi[aqi$city != "Paris",]$city)`.
 
 ```{r subsetPM2.5}
 aqicny <- aqi[aqi$date %in% cny$date | aqi$date %in% cny$eve,]
