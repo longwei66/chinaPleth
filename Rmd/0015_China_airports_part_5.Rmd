@@ -1,0 +1,210 @@
+---
+title: "Getting and cleaning data, example of Chinese airports - Part 5/5"
+author: "chinaPleth"
+date: "January 1, 2015"
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Introduction
+### Objective  
+One of the big problem for anybody interested in China and data science is the availability of data sets. There are limited free ressources available and they are often incomplete or innacurate. Getting data and especially cleaning data becomes one of the biggest pain of data science applied to China.
+
+The objective of this group of post is to illustrate the problem and associated process on a specific example: plot a map of the airports of mainland China.
+
+In this fifth part, we will fix, clean data for the complement data set generated in part [part 4](http://chinapleth.io/2016/01/01/getting-and-cleaning-data-example-of-chinese-airports-part-45/)
+
+
+### Dependencies
+We will need few standard packages as loaded bellow.
+
+```{r libLoading, message=FALSE}
+library(maptools); library(reshape2)
+library(grid); library(dplyr)
+library(ggplot2); library(gmaps)
+library(ggmap); library(jsonlite)
+library(Amelia)
+```
+
+### Loading part 4 objects
+
+```{r loadPart1, echo=TRUE,eval=TRUE}
+load(file = "./chinese-airports-part-4.Rda")
+```
+
+
+
+## Finding missing data for remaining airports (`airports_2_chec` dataset)
+### What's our plan ?
+```{r planA2C}
+missmap(airports_2_check, main = "Missingness map for remaining airports")
+```
+
+This set of aiports have a lot of data missing, we will use the wikipedia dataset to complete it as much as possible.
+
+### Finding missing `ICAO` and missing `IATA.FAA`
+
+Let's first complete missing ICAO for known IATA.FAA code and missing IATA.FAA for known ICAO codes.
+
+```{r A2CMissingICAO}
+## Search pattern for airport with IATA.FAA codes and no ICAO code
+search <- !is.na(airports_2_check$IATA.FAA) & is.na(airports_2_check$ICAO)
+missing.icao.with.iata <- airports_2_check[search,]$IATA.FAA
+## Look in wikipedia data set
+found.icao <- wikiAirports[wikiAirports$IATA.FAA %in% missing.icao.with.iata,]
+found.icao <- dplyr::select(found.icao, IATA.FAA, ICAO)
+airports_2_check[airports_2_check$IATA.FAA %in% found.icao$IATA.FAA,]$ICAO <- found.icao$ICAO
+
+## Search pattern for airport with ICAO codes and no IATA.FAA code
+search <- is.na(airports_2_check$IATA.FAA) & !is.na(airports_2_check$ICAO)
+missing.iata.with.icao <- airports_2_check[search,]$ICAO
+## Look in wikipedia data set
+found.iata <- wikiAirports[wikiAirports$ICAO %in% missing.iata.with.icao,]
+found.iata <- dplyr::select(found.iata, IATA.FAA, ICAO)
+airports_2_check[airports_2_check$ICAO %in% found.iata$ICAO,]$IATA.FAA <- found.iata$IATA.FAA
+missmap(airports_2_check)
+```
+
+
+### Removing military airports
+We find out that most of airports with missing ICAO and IATA.FAA are in fact military bases. Let's remove these.
+
+```{r A2CremovingMilitary}
+# search pattern
+search <- is.na(airports_2_check$IATA.FAA) & is.na(airports_2_check$ICAO) & grepl("AIRFIELD|TEST RANGE|NAVAL BASE|REEF|AIR BASE", toupper(airports_2_check$name))
+# check names
+airports_2_check[search,]$name
+# remove these lines
+airports_2_check <- airports_2_check[!search,]
+```
+
+
+### Removing airports without ICAO or IATA
+We find out that remaining airports are either already in IATA data set (such as Lijiang airport) or closed, we decide to remove all airports if IATA.FAAA and ICAO code are missing
+
+```{r A2CcleanCodes}
+# search pattern
+search <- is.na(airports_2_check$IATA.FAA) & is.na(airports_2_check$ICAO)
+# check names
+airports_2_check[search,]$name
+# remove these lines
+airports_2_check <- airports_2_check[!search,]
+missmap(airports_2_check)
+```
+
+
+### Removing double with IATA dataframe
+There are some airports which are already in the IATA dataset, we chose to remove these.
+
+```{r remove2}
+## check if some IATA codes of airports_2check are double
+checkIATA <- as.data.frame(table(airports_2_check$IATA.FAA))
+names(checkIATA) <- c("IATA.FAA", "freq")
+checkIATA[checkIATA$freq > 1,]$IATA.FAA
+
+## check if some IATA codes of airports_2check are in IATA dataframe
+checkIATA <- as.data.frame(table(c(IATA$IATA.FAA, airports_2_check$IATA.FAA)))
+names(checkIATA) <- c("IATA.FAA", "freq")
+a <- checkIATA[checkIATA$freq > 1,]$IATA.FAA
+a1 <- dplyr::select(IATA[IATA$IATA.FAA %in% a,], IATA.FAA, ICAO, name, latitude.deg, longitude.deg)
+a1$source <- "IATA"
+a2 <- dplyr::select(airports_2_check[airports_2_check$IATA.FAA %in% a,], IATA.FAA, ICAO, name, latitude.deg, longitude.deg)
+a2$source <- "airports_2_check"
+rbind(a1,a2)
+airports_2_check <- airports_2_check[!(airports_2_check$IATA.FAA %in% a),]
+```
+
+```{r remove3}
+## check if some ICAO codes of airports_2check are double
+checkICAO <- as.data.frame(table(airports_2_check$ICAO))
+names(checkICAO) <- c("ICAO", "freq")
+a <- checkICAO[checkICAO$freq > 1,]$ICAO
+a1 <- dplyr::select(airports_2_check[airports_2_check$ICAO %in% a,], IATA.FAA, ICAO, name, latitude.deg, longitude.deg)
+a2 <- dplyr::select(wikiAirports[wikiAirports$ICAO %in% a,], IATA.FAA, ICAO, name)
+a2
+#a2$latitude.deg <- 0
+#a2$longitude.deg <- 0
+#rbind(a1,a2)
+## remove these airports, it's difficult to conclude which data is correct
+#airports_2_check <- airports_2_check[!(airports_2_check$IATA.FAA %in% a),]
+```
+
+```{r remove4}
+## check if some IATA codes of airports_2check are in IATA dataframe
+checkICAO <- as.data.frame(table(c(IATA$ICAO, airports_2_check$ICAO)))
+names(checkICAO) <- c("ICAO", "freq")
+b <- checkICAO[checkICAO$freq > 1,]$ICAO
+b1 <- dplyr::select(IATA[IATA$ICAO %in% b,], IATA.FAA, ICAO, name, latitude.deg, longitude.deg)
+b1$source <- "IATA"
+b2 <- dplyr::select(airports_2_check[airports_2_check$ICAO %in% b,], IATA.FAA, ICAO, name, latitude.deg, longitude.deg)
+b2$source <- "airports_2_check"
+rbind(b1,b2)
+airports_2_check <- airports_2_check[!(airports_2_check$IATA.FAA %in% a),]
+
+```
+
+### Fixing missing data with wikipedia
+We use wikipedia data frame from previous section to fix missing information. We can fix few missing ICAO codes but no missing IATA.
+
+```{r AC2fixmissing}
+## search AO missing ICAO with IATA in wikiairport
+search <- wikiAirports$IATA.FAA %in% airports_2_check[is.na(airports_2_check$ICAO),]$IATA.FAA
+## replace their ICAO code
+search2 <- airports_2_check$IATA.FAA %in%  wikiAirports[search,]$IATA.FAA 
+airports_2_check[search2,]$IATA.FAA
+airports_2_check[search2,]$ICAO <- wikiAirports[search,]$ICAO
+missmap(airports_2_check)
+
+## search AO missing IATA with ICAO in wikiairport
+sum(wikiAirports$ICAO %in% airports_2_check[is.na(airports_2_check$IATA.FAA),]$ICAO)
+```
+
+
+```{r AC2fixmissingO}
+## check wikipedia data for airport with IATA Code
+A1 <- merge(airports_2_check[!is.na(airports_2_check$IATA.FAA),], wikiAirports, by = "IATA.FAA", all.x = FALSE)
+## check ICAO code difference
+A1$distICAO <- stringdist(A1$ICAO.x, A1$ICAO.y)
+A1$distName <- stringdist(A1$name.x, A1$name.y)
+A1$distLink <- stringdist(A1$airport.wikipedia.link.x, A1$airport.wikipedia.link.x)
+
+
+
+## keep wikipedia names for airport with same ICAO but difference in name.x and name.y
+search <- !is.na(A1$distName) & A1$distName > 0 & !is.na(A1$distICAO) & A1$distICAO == 0
+dplyr::select(A1[search,], name.x, name.y, IATA.FAA)
+A1[search,]$name.x <- A1[search,]$name.y
+A1$distName <- stringdist(A1$name.x, A1$name.y)
+
+## keep ICAO from wikipedia for airport with same names but difference in ICAO.x and ICAO.y
+search <- !is.na(A1$distName) & A1$distName == 0 & !is.na(A1$distICAO) & A1$distICAO > 0
+dplyr::select(A1[search,], name.x, name.y, IATA.FAA, ICAO.x, ICAO.y)
+A1[search,]$ICAO.x <- A1[search,]$ICAO.y
+A1$distICAO <- stringdist(A1$ICAO.x, A1$ICAO.y)
+
+## checkout mismatch in ICAO.x and ICAO.y 
+search <- !is.na(A1$distICAO) & A1$distICAO > 0
+a <- dplyr::select(A1[search,], name.x, name.y, IATA.FAA, ICAO.x, ICAO.y)
+
+for(i in 1:nrow(a)) {
+        print(IATA[IATA$ICAO == a[i,]$ICAO.x & !is.na(IATA$ICAO),]$latitude.deg)
+}
+a <- dplyr::select(A1, name.x, name.y, IATA.FAA, ICAO.x, ICAO.y, distName, distICAO, distLink, longitude.deg, latitude.deg)
+
+
+
+```
+
+
+
+
+checkairports_2_check <- as.data.frame(table(airports_2_check[!is.na(airports_2_check$IATA.FAA),]$IATA.FAA))
+names(checkairports_2_check) <- c("IATA.FAA", "freq")
+checkairports_2_check[checkairports_2_check$freq > 1,]$IATA.FAA
+checkairports_2_check <- as.data.frame(table(airports_2_check[!is.na(airports_2_check$ICAO),]$ICAO))
+names(checkairports_2_check) <- c("ICAO", "freq")
+checkairports_2_check[checkairports_2_check$freq > 1,]$ICAO
+
+```
+

@@ -9,7 +9,7 @@ output:
 
 
 ```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
-#opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
 ```
 
 

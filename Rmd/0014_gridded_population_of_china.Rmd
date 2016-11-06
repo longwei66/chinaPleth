@@ -1,0 +1,188 @@
+---
+title: "Gridded population of China"
+author: "chinaPleth"
+date: "April 4th, 2016"
+output: 
+  html_fragment:
+    self_contained: false
+    toc: no
+---
+
+
+
+```{r configuration, message=FALSE, warning=FALSE, include=FALSE}
+#opts_knit$set(upload.fun = function(file){library(RWordPress);uploadFile(file)$url;})
+```
+
+
+
+## Introduction
+### Objective
+In an earlier [post](http://chinapleth.io/2015/10/24/map-of-china-urbanisation-per-province-with-largest-cities-in-english/) we mapped the urbanization rate of China at province level. In this post we will go futher by visualizing where Chinese people are living using a gridded population map.
+
+We will use the NASA dataset (Population Count Grid, v3 (1990, 1995, 2000)) which consists of estimates of human population for the years 1990, 1995, and 2000 by 2.5 arc-minute grid cells and associated data sets dated circa 2000.
+
+The population count grids contain estimates of the number of persons per grid cell.
+
+### Overall Process :  
+1. Get and clean gridded population data as well as grid data
+
+
+
+
+### Required libraries
+We need several R packages for this study.
+
+```{r loadLibraries, message=FALSE, warning=FALSE}
+library(maptools)
+library(raster)
+library(gtools)
+library(ggplot2)
+library(rasterVis)
+#library(lubridate)
+# Set-up locale for date format processing
+Sys.setlocale("LC_ALL","C")
+#library(dplyr); ; library(reshape2)
+# check if we are in the right working directory
+if(gsub("(.*)\\/", "", getwd()) != "Rmd") {setwd("./Rmd")}
+```
+
+
+## Get and clean population and grid data
+
+### Download files
+The data is available for free to download on SEDAC website [http://sedac.ciesin.columbia.edu/data/set/gpw-v3-population-count/data-download](http://sedac.ciesin.columbia.edu/data/set/gpw-v3-population-count/data-download)
+
+There are 3 formats available, *.bil, [ *.ascii or *.grid](https://en.wikipedia.org/wiki/Esri_grid)
+We will use directly the ASCII version which can be read with `readAsciiGrid()` from the `maptool` package.
+
+We select data for China only and download 3 datasets :  
+
+- Population count grid
+- Population density grid
+- Land / geographic unit area grid
+
+Each data set is unzipped in a specific folder
+```{r configureFileSource}
+# p00g	population counts in 2000, unadjusted
+popGriCountFile <- "../../data/chinaPlethData/ext/gridded-Population-of-China/chncount-ascii/chnp00g.asc"
+# ds00g	population densities in 2000, unadjusted, persons per square km
+densGriCountFile <- "../../data/chinaPlethData/ext/gridded-Population-of-China/chndens-ascii/chnds00g.asc"
+# areag	land area in square kilometers
+areaGriCountFile <- "../../data/chinaPlethData/ext/gridded-Population-of-China/chnarea-ascii/chnareag.asc"
+# madmg	mean geographic unit area in square kilometers. These ata are useful for evaluating 	the effective resolution of the input data (the size of the geographic unit area).
+admGriCountFile <- "../../data/chinaPlethData/ext/gridded-Population-of-China/chnarea-ascii/chnmadmg.asc"
+```
+
+
+
+### Load data
+
+```{r loadGridData}
+#x <- readAsciiGrid(fname = popGriCountFile)
+
+pop <- raster(popGriCountFile)
+fromDisk(pop)
+
+dens <- raster(densGriCountFile)
+fromDisk(dens)
+
+area <- raster(areaGriCountFile)
+fromDisk(area)
+
+adm <- raster(admGriCountFile)
+fromDisk(adm)
+
+```
+
+
+## Visualise gridded data
+```{r visualizeData}
+plot(pop)
+plot(dens)
+plot(area)
+plot(adm)
+
+
+
+boundingBox <- c(115, 125, 25, 35)
+pop.crop <- crop(pop, boundingBox)
+plot(pop.crop)
+
+```
+
+
+## Map of China
+```{r}
+ChinaPolygonsLevel1 <- readShapeSpatial("../../data/chinaPlethData/ext/GAA/CHN_adm1.shp")
+
+## Fix English names, simplify
+ChinaPolygonsLevel1@data$NAME_1 <- as.character(ChinaPolygonsLevel1@data$NAME_1)
+ChinaPolygonsLevel1@data[grep("Xinjiang Uygur", ChinaPolygonsLevel1@data$NAME_1),]$NAME_1 <- "Xinjiang"
+ChinaPolygonsLevel1@data[grep("Nei Mongol", ChinaPolygonsLevel1@data$NAME_1),]$NAME_1 <- "Nei Menggu"
+ChinaPolygonsLevel1@data[grep("Ningxia Hui", ChinaPolygonsLevel1@data$NAME_1),]$NAME_1 <- "Ningxia"
+ChinaPolygonsLevel1@data$NAME_1 <- as.factor(ChinaPolygonsLevel1@data$NAME_1)
+
+# Use level1 as index & Province name as id
+ChinaLevel1Data <- ChinaPolygonsLevel1@data
+ChinaLevel1Data$id <- ChinaLevel1Data$NAME_1
+
+# Fortify the data (polygon map as dataframe) using english names
+ChinaLevel1dF <- fortify(ChinaPolygonsLevel1, region = "NAME_1")
+
+## Merge polygons and associated data in one data frame by id (name of the province in chinese)
+ChinaLevel1 <- merge(ChinaLevel1dF, ChinaLevel1Data, by = "id")
+rm(ChinaPolygonsLevel1, ChinaLevel1dF, ChinaLevel1Data)
+
+
+## convert the raster to points (to plot with ggplot)
+raster.points <- rasterToPoints(pop)
+raster.points <- data.frame(raster.points)
+colnames(raster.points) <-c('x','y','population')
+
+## find x% of China
+total.pop <- sum(raster.points$population)
+n.unit <- nrow(raster.points)
+av.unit.pop <- total.pop / n.unit
+
+sum(raster.points[raster.points$population > av.unit.pop,]$population)
+
+mp <- ggplot(data=raster.points[raster.points$population > 1,], aes(y=y, x=x)) 
+mp <- mp + geom_raster(aes(fill=log(population)))
+mp
+
+## Create the ggplot using standard approach
+## group is necessary to draw in correct order, try without to understand the problem
+g <- ggplot(ChinaLevel1, aes(x = long, y = lat, fill = ENGTYPE_1, group = group))
+
+## GGPLOT
+g <- ggplot()
+## projected shadow
+g <- g+ geom_polygon(data = ChinaLevel1, aes(x = long + 0.7, y = lat - 0.5, group = group), color = "grey50", size = 0.2, fill = "grey50")
+
+## Add Raster
+g <- g + geom_raster(data=raster.points[raster.points$population > 1,], aes(y=y, x=x, fill=population))
+
+## Province boundaries
+g <- g + geom_point(data = ChinaLevel1, aes(x = long, y = lat), color = "white", size = 0.2)
+
+## to keep correct ratio in the projection
+g <- g + coord_equal()
+g <- g + labs(title = "China - level 1 subdivisions")
+print(g)
+```
+
+
+
+## References
+### Similar work
+http://metrocosm.com/world-population-split-in-half-map/
+
+Center for International Earth Science Information Network - CIESIN - Columbia University, United Nations Food and Agriculture Programme - FAO, and Centro Internacional de Agricultura Tropical - CIAT. 2005. Gridded Population of the World, Version 3 (GPWv3): Population Count Grid. Palisades, NY: NASA Socioeconomic Data and Applications Center (SEDAC). http://dx.doi.org/10.7927/H4639MPP. Accessed DAY MONTH YEAR. 
+
+### How to
+https://pakillo.github.io/R-GIS-tutorial/#raster
+http://zevross.com/blog/2015/03/30/map-and-analyze-raster-data-in-r/
+https://jeffreybreen.wordpress.com/tag/raster/
+https://rstudio-pubs-static.s3.amazonaws.com/68747_1ce236d66dcd4d1e875ca34a51344530.html
+http://nrelscience.org/2013/05/30/this-is-how-i-did-it-mapping-in-r-with-ggplot2/
