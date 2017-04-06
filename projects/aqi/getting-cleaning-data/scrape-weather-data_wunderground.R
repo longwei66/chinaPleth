@@ -19,19 +19,19 @@ uriCityWeather <- read.csv(file = "./data/share/aqi/wunderground-cities-data-sou
                            sep = ";", 
                            header = TRUE)
 ## Plan number of days per year
-nbDay <- 365
+## nbDay <- 365
 
 ## Plan for data collection per year and city
 listOfCityYear <- data.frame(
         year = c(
-                "2016","2016","2016","2016","2016","2016"#,
-                #"2015","2015","2015","2015","2015","2015"#,
+                #"2016","2016","2016","2016","2016","2016"#,
+                "2015","2015","2015","2015","2015","2015"#,
                 #"2014","2014","2014","2014","2014","2014"#,
                 #"2013","2013","2013","2013","2013","2013"
                 ),
         city = c(
-                "Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
                 #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
+                "Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
                 #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
                 #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"
                  )
@@ -73,6 +73,8 @@ for (j in 1:nrow(listOfCityYear)) {
         day <- paste(year,"-12-31", sep="")
         date <- strptime(day, "%Y-%m-%d")
 
+        nbDay <- as.numeric(as.Date(paste(year,"-12-31", sep = "")) - as.Date(paste(year,"-01-01", sep = "")))
+        
         ## LOOP nbDay days
         for (i in 1:nbDay) {
                 ## Create data for this loop
