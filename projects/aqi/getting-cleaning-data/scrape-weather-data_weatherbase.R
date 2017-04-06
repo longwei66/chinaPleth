@@ -16,7 +16,7 @@ Sys.setlocale(category = "LC_ALL", locale = "C")
 ## -----------------------------------------
 
 ## Cities : city names and url to get weather
-uriCityWeather <- read.csv(file = "./data/share/aqi/weather-cities-data-source-url.csv", 
+uriCityWeather <- read.csv(file = "./data/share/aqi/weatherbase-cities-data-source-url.csv", 
                            sep = ";", 
                            header = TRUE)
 
