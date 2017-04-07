@@ -25,13 +25,13 @@ uriCityWeather <- read.csv(file = "./data/share/aqi/wunderground-cities-data-sou
 listOfCityYear <- data.frame(
         year = c(
                 #"2016","2016","2016","2016","2016","2016"#,
-                "2015","2015","2015","2015","2015","2015"#,
+                #"2015","2015","2015","2015","2015","2015"#,
                 #"2014","2014","2014","2014","2014","2014"#,
                 #"2013","2013","2013","2013","2013","2013"
                 ),
         city = c(
                 #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
-                "Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
+                #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
                 #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"#,
                 #"Shanghai","Beijing","Chengdu","Guangzhou","Shenyang","Paris"
                  )
