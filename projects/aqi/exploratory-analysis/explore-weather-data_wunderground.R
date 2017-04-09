@@ -123,7 +123,7 @@ ann_text <- data.frame(Humidity = 50, Temperature = -20,lab = "Text",
 g <- g + geom_text(data = ann_text, aes(x = Humidity, y = Temperature), 
                    label = "(c) chinaPleth.io
                    Data from
-                   wunderground.comm", col = "black", size = 3, hjust = 0)
+                   wunderground.com", col = "black", size = 3, hjust = 0)
 g
 
 ## =============================================================================

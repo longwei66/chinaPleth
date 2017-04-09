@@ -64,6 +64,9 @@ masterWeather[ Dewpoint == -9999,  Dewpoint := NA ]
 
 ## Pressure, update -9999 which are NA values
 masterWeather[ Pressure == -9999, Pressure:= NA]
+## remove strange pressure value, one is bellow 150
+masterWeather[ Pressure < 800, Pressure:= NA]
+
 
 ## Visibility, nothing to do
 
